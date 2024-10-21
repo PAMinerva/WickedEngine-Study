@@ -144,6 +144,13 @@ namespace wi::shadercompiler
 		if (has_flag(input.flags, Flags::DISABLE_OPTIMIZATION))
 		{
 			args.push_back(L"-Od");
+
+			// aggiunti da me
+			args.push_back(L"-Zi");
+			args.push_back(L"-Zss");
+			args.push_back(L"-Qembed_debug");
+			args.push_back(L"-Fd");
+			args.push_back(L"./");
 		}
 
 		switch (input.format)
