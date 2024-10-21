@@ -52,6 +52,201 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	application.infoDisplay.resolution = true;
 	application.infoDisplay.fpsinfo = true;
 
+
+
+	// my code starts here
+
+	application.Initialize(); // Crea device, 
+
+	class MyRender : public wi::RenderPath3D
+	{
+		//wi::Sprite sprite;
+		//wi::SpriteFont font;
+		//wi::ecs::Entity entity;
+
+	public:
+		MyRender()
+		{
+			/*sprite = wi::Sprite("../Content/logo_small.png");
+			sprite.params.pos = XMFLOAT3(100, 100, 0);
+			sprite.params.siz = XMFLOAT2(256, 256);
+			sprite.anim.wobbleAnim.amount = XMFLOAT2(0.5f, 0.5f);
+			AddSprite(&sprite);
+
+			font.SetText("Hello World!");
+			font.params.posX = 100.0f;
+			font.params.posY = sprite.params.pos.y + sprite.params.siz.y;
+			font.params.size = 42;
+			AddFont(&font);*/
+
+			//entity = wi::scene::LoadModel("../Content/models/teapot.wiscene", XMMatrixTranslation(0.0f, 0.0f, 10.0f), true);
+
+			wi::scene::Scene& scene = wi::scene::GetScene();
+
+			/*wi::ecs::Entity entityCube = scene.Entity_CreateCube("cube");
+			wi::scene::TransformComponent* transformCube = scene.transforms.GetComponent(entityCube);
+			if (transformCube != nullptr)
+			{
+				transformCube->Translate(XMFLOAT3(0.0f, 0.0f, 10.0f));
+				transformCube->RotateRollPitchYaw(XMFLOAT3(0.0f, 10.0f, 10.0f));
+			}
+
+			auto lightEntity = scene.Entity_CreateLight("light");
+			auto& light = scene.lights[0];
+
+			light.type = wi::scene::LightComponent::LightType::POINT;
+			light.color = XMFLOAT3(0.5, 0.5, 0.5);
+			light.intensity = 1000;
+			light.range = std::numeric_limits<float>::max();
+			//light.SetCastShadow(true);
+
+			auto& transform = *scene.transforms.GetComponent(lightEntity);
+			transform.Translate(XMFLOAT3(-10.0f, 10.0f, -10.0f));
+			transform.UpdateTransform();*/
+
+
+
+			auto materialEntity = scene.Entity_CreateMaterial("default");
+			auto& material = *scene.materials.GetComponent(materialEntity);
+			material.shaderType = wi::scene::MaterialComponent::SHADERTYPE_UNLIT;
+			material.SetUseVertexColors(true);
+			material.SetDoubleSided(true);
+			//material.CreateRenderData();
+			auto triangleMeshEntity = scene.Entity_CreateMesh("triangle");
+			auto& objectTriangle = scene.objects.Create(triangleMeshEntity);
+			objectTriangle.meshID = triangleMeshEntity;
+			auto& meshTriangle = *scene.meshes.GetComponent(triangleMeshEntity);
+			meshTriangle.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
+			meshTriangle.subsets.back().materialID = materialEntity;
+			//scene.Component_Attach(materialEntity, triangleMeshEnity);
+			//uint32_t vertexOffset = (uint32_t)meshTriangle.vertex_positions.size();
+			meshTriangle.indices.resize(3);
+			meshTriangle.subsets.back().indexOffset = (uint32_t)0;
+			meshTriangle.subsets.back().indexCount = (uint32_t)3;
+			meshTriangle.indices[0] = 0;
+			meshTriangle.indices[1] = 2;
+			meshTriangle.indices[2] = 1;
+			meshTriangle.vertex_positions.resize(3);
+			meshTriangle.vertex_positions[0] = XMFLOAT3(-1.0f, -0.5f, 2.0f);
+			meshTriangle.vertex_positions[1] = XMFLOAT3(1.0f, -0.5f, 2.0f);
+			meshTriangle.vertex_positions[2] = XMFLOAT3(0.0f, 1.0f, 2.0f);
+			meshTriangle.vertex_colors.resize(3);
+			const XMFLOAT4 red = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+			const XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
+			const XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
+			uint32_t rgbaRed = wi::math::CompressColor(red);
+			uint32_t rgbaGreen = wi::math::CompressColor(green);
+			uint32_t rgbaBlue = wi::math::CompressColor(blue);
+			meshTriangle.vertex_colors[0] = rgbaRed;
+			meshTriangle.vertex_colors[1] = rgbaGreen;
+			meshTriangle.vertex_colors[2] = rgbaBlue;
+			/*wi::vector<wi::Color> colors;
+			colors.resize(3);
+			colors[0] = { 255, 0, 0, 255 };
+			colors[1] = { 0, 255, 0, 255 };
+			colors[2] = { 0, 0, 255, 255 };
+			meshTriangle.vertex_colors[0] = colors[0];
+			meshTriangle.vertex_colors[1] = colors[1];
+			meshTriangle.vertex_colors[2] = colors[2];*/
+			meshTriangle.CreateRenderData();
+			scene.transforms.Create(triangleMeshEntity);
+			auto meshtrans = scene.transforms.GetComponent(triangleMeshEntity);
+			meshtrans->Translate(XMFLOAT3(0, 0, 0));
+			meshtrans->Scale(XMFLOAT3(1, 1, 1));
+
+
+
+			/*auto materialEntity = scene.Entity_CreateMaterial("default");
+			auto& material = *scene.materials.GetComponent(materialEntity);
+			material.baseColor = XMFLOAT4(1.0, 1.0, 1.0, 1);
+			material.SetDoubleSided(true);
+			material.CreateRenderData();
+
+			auto meshEnity = scene.Entity_CreateMesh("test");
+			auto& object = scene.objects.Create(meshEnity);
+			auto& mesh = *scene.meshes.GetComponent(meshEnity);
+			object.meshID = meshEnity;
+			scene.Component_Attach(materialEntity, meshEnity);
+
+			mesh.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
+
+			mesh.subsets.back().materialID = materialEntity;
+
+			uint32_t vertexOffset = (uint32_t)mesh.vertex_positions.size();
+
+			mesh.indices.resize(3);
+
+			mesh.subsets.back().indexOffset = (uint32_t)0;
+			mesh.subsets.back().indexCount = (uint32_t)3;
+
+			mesh.indices[0] = 0;
+			mesh.indices[1] = 2;
+			mesh.indices[2] = 1;
+
+			mesh.vertex_positions.resize(3);
+			mesh.vertex_positions[0] = XMFLOAT3(0, 0, 2);
+			mesh.vertex_positions[1] = XMFLOAT3(1, 0, 2);
+			mesh.vertex_positions[2] = XMFLOAT3(0, 1, 2);
+
+			mesh.vertex_normals.resize(3);
+			mesh.vertex_normals[0] = XMFLOAT3(0, 0, 1);
+			mesh.vertex_normals[1] = XMFLOAT3(0, 0, 1);
+			mesh.vertex_normals[2] = XMFLOAT3(0, 0, 1);
+
+			mesh.vertex_tangents.resize(3);
+			mesh.vertex_tangents[0] = XMFLOAT4(-1, 0, 0, 1);
+			mesh.vertex_tangents[1] = XMFLOAT4(0, 1, 0, 1);
+			mesh.vertex_tangents[2] = XMFLOAT4(1, 0, 0, 1);
+
+			mesh.vertex_uvset_0.resize(3);
+			mesh.vertex_uvset_0[0] = XMFLOAT2(0, 0);
+			mesh.vertex_uvset_0[1] = XMFLOAT2(0, 0);
+			mesh.vertex_uvset_0[2] = XMFLOAT2(0, 0);
+
+			mesh.CreateRenderData();
+
+			scene.transforms.Create(meshEnity);
+			auto meshtrans = scene.transforms.GetComponent(meshEnity);
+			meshtrans->Translate(XMFLOAT3(0, 0, 0));
+			meshtrans->Scale(XMFLOAT3(1, 1, 1));
+
+
+			auto lightEntity = scene.Entity_CreateLight("light");
+			auto& light = scene.lights[0];
+
+			light.type = wi::scene::LightComponent::LightType::POINT;
+			light.color = XMFLOAT3(0.5, 0.5, 0.5);
+			light.intensity = 1000;
+			light.range = std::numeric_limits<float>::max();
+			light.SetCastShadow(true);
+
+			auto& transform = *scene.transforms.GetComponent(lightEntity);
+			transform.Translate(XMFLOAT3(0.0, 0.0, 1.0));
+			transform.UpdateTransform();
+
+			scene.Update(0);*/
+		}
+
+		/*void Update(float dt) override
+		{
+			using namespace wi::scene;
+			TransformComponent* transform = GetScene().transforms.GetComponent(entity);
+			if (transform != nullptr)
+			{
+				transform->RotateRollPitchYaw(XMFLOAT3(0.0f, 0.1f, 0.0f));
+			}
+
+			RenderPath3D::Update(dt);
+		}*/
+	};
+
+	MyRender render;
+	application.ActivatePath(&render);
+
+	// my code ends here
+
+
+
 	MSG msg = { 0 };
 	while (msg.message != WM_QUIT)
 	{
