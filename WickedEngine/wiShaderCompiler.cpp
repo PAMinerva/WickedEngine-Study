@@ -145,8 +145,12 @@ namespace wi::shadercompiler
 		{
 			args.push_back(L"-Od");
 
+<<<<<<< HEAD
 			// Additional options to include debug info in compiled shaders
 			// Required to debug shaders using PIX or RenderDoc
+=======
+			// aggiunti da me
+>>>>>>> bec2125d (hello triangle)
 			args.push_back(L"-Zi");
 			args.push_back(L"-Zss");
 			args.push_back(L"-Qembed_debug");
