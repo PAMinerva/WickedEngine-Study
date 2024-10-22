@@ -52,15 +52,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	application.infoDisplay.resolution = true;
 	application.infoDisplay.fpsinfo = true;
 
-
-
-<<<<<<< HEAD
 	//
 	// MY CODE STARTS HERE
 	//
-=======
-	// my code starts here
->>>>>>> bec2125d (hello triangle)
 
 	application.Initialize(); // Crea device, 
 
@@ -249,15 +243,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	MyRender render;
 	application.ActivatePath(&render);
 
-<<<<<<< HEAD
 	//
 	// MY CODE ENDS HERE
 	//
-=======
-	// my code ends here
->>>>>>> bec2125d (hello triangle)
-
-
 
 	MSG msg = { 0 };
 	while (msg.message != WM_QUIT)
