@@ -545,6 +545,7 @@ struct PrimitiveID
 	uint instanceIndex;
 	uint subsetIndex;
 	bool maybe_clustered;
+	uint maybe_clustered_initilized;
 
 	// These packing methods require meshlet data, and pack into 32 bits:
 	inline uint pack()
@@ -572,6 +573,8 @@ struct PrimitiveID
 		instanceIndex = meshlet.instanceIndex;
 		subsetIndex = meshlet.geometryIndex - inst.geometryOffset;
 		maybe_clustered = true;
+		maybe_clustered_initilized = 1;
+
 	}
 
 	// These packing methods don't need meshlets, but they are packed into 64 bits:
@@ -588,21 +591,27 @@ struct PrimitiveID
 		instanceIndex = value.y & 0xFFFFFF;
 		subsetIndex = (value.y >> 24u) & 0xFF;
 		maybe_clustered = false;
+		maybe_clustered_initilized = 1;
+
 	}
 
 	uint3 tri()
 	{
 		ShaderMeshInstance inst = load_instance(instanceIndex);
 		ShaderGeometry geometry = load_geometry(inst.geometryOffset + subsetIndex);
-		if (maybe_clustered && geometry.vb_clu >= 0)
+		if (maybe_clustered_initilized == 0)
 		{
-			const uint clusterID = primitiveIndex >> 7u;
-			const uint triangleID = primitiveIndex & 0x7F;
-			ShaderCluster cluster = bindless_structured_cluster[NonUniformResourceIndex(geometry.vb_clu)][clusterID];
-			uint i0 = cluster.vertices[cluster.triangles[triangleID].i0()];
-			uint i1 = cluster.vertices[cluster.triangles[triangleID].i1()];
-			uint i2 = cluster.vertices[cluster.triangles[triangleID].i2()];
-			return uint3(i0, i1, i2);
+			maybe_clustered = false;
+			if (maybe_clustered && geometry.vb_clu >= 0)
+			{
+				const uint clusterID = primitiveIndex >> 7u;
+				const uint triangleID = primitiveIndex & 0x7F;
+				ShaderCluster cluster = bindless_structured_cluster[NonUniformResourceIndex(geometry.vb_clu)][clusterID];
+				uint i0 = cluster.vertices[cluster.triangles[triangleID].i0()];
+				uint i1 = cluster.vertices[cluster.triangles[triangleID].i1()];
+				uint i2 = cluster.vertices[cluster.triangles[triangleID].i2()];
+				return uint3(i0, i1, i2);
+			}
 		}
 		const uint startIndex = primitiveIndex * 3 + geometry.indexOffset;
 		Buffer<uint> indexBuffer = bindless_buffers_uint[NonUniformResourceIndex(geometry.ib)];
