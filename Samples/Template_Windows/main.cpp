@@ -54,7 +54,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 
 
-	// my code starts here
+	//
+	// MY CODE STARTS HERE
+	//
 
 	application.Initialize(); // Crea device, 
 
@@ -243,7 +245,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	MyRender render;
 	application.ActivatePath(&render);
 
-	// my code ends here
+	//
+	// MY CODE ENDS HERE
+	//
 
 
 
