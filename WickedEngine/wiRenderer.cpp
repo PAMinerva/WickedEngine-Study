@@ -774,6 +774,9 @@ bool LoadShader(
 		input.minshadermodel = minshadermodel;
 		input.defines = permutation_defines;
 
+		// Add debug info to compiled shaders
+		input.flags = wi::shadercompiler::Flags::DISABLE_OPTIMIZATION;
+
 		std::string sourcedir = SHADERSOURCEPATH;
 		wi::helper::MakePathAbsolute(sourcedir);
 		input.include_directories.push_back(sourcedir);
