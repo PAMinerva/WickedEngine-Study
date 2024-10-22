@@ -145,7 +145,8 @@ namespace wi::shadercompiler
 		{
 			args.push_back(L"-Od");
 
-			// aggiunti da me
+			// Additional options to include debug info in compiled shaders
+			// Required to debug shaders using PIX or RenderDoc
 			args.push_back(L"-Zi");
 			args.push_back(L"-Zss");
 			args.push_back(L"-Qembed_debug");
