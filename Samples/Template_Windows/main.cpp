@@ -95,7 +95,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// MY CODE STARTS HERE
 	//
 
-	application.Initialize(); // Crea device, 
+	application.Initialize();
 
 	class MyRender : public wi::RenderPath3D
 	{
