@@ -150,7 +150,7 @@ namespace wi::shadercompiler
 			args.push_back(L"-Zi");
 			args.push_back(L"-Zss");
 			args.push_back(L"-Qembed_debug");
-			args.push_back(L"-Fd");
+			//args.push_back(L"-Fd");
 			args.push_back(L"./");
 		}
 
