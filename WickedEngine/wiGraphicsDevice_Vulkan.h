@@ -260,6 +260,45 @@ namespace wi::graphics
 			GraphicsDevice_Vulkan* device = nullptr;
 			std::mutex locker;
 
+			// The `CopyAllocator::CopyCMD` structure facilitate the allocation and management of command buffers and
+			// synchronization primitives required for efficient data transfer between the CPU and GPU or between different GPU resources.
+			// Here is a detailed explanation of the `CopyAllocator::CopyCMD` structure and its purpose:
+
+			// 1. **Command Pools and Command Buffers**:
+			//    - `VkCommandPool transferCommandPool`: This command pool is used for allocating command buffers that handle data transfer operations.
+			//    - `VkCommandPool transitionCommandPool`: This command pool is used for allocating command buffers that handle resource state transitions.
+			//    - `VkCommandBuffer transferCommandBuffer`: This command buffer is used to record commands for data transfer operations.
+			//    - `VkCommandBuffer transitionCommandBuffer`: This command buffer is used to record commands for resource state transitions.
+
+			// 2. **Synchronization Primitives**:
+			//    - `VkFence fence`: A fence is used to synchronize the completion of command buffer execution.
+			//		It ensures that the CPU can wait for the GPU to finish executing the commands recorded in the command buffers.
+			//    - `VkSemaphore semaphores[3]`: Semaphores are used to synchronize operations between different command queues.
+			//		In this case, three semaphores are used to synchronize between the copy, graphics, compute and decode video queues.
+
+			// 3. **Upload Buffer**:
+			//    - `GPUBuffer uploadbuffer`: This buffer is used to transfer data from the CPU to the GPU.
+			//		It is allocated with a size that is the next power of two greater than or equal to the requested staging size.
+			//		This buffer is used to stage data before it is copied to its final destination on the GPU.
+
+			// 4. **Allocation and Initialization**:
+			//    - The `CopyAllocator::allocate` function is responsible for allocating and initializing a new `CopyCMD` structure.
+			//		It first tries to find a suitable buffer in the `freelist` that can accommodate the requested staging size.
+			//		If no suitable buffer is found, it creates a new `CopyCMD` with new command pools, command buffers, fence, and semaphores.
+			//		It also allocates a new upload buffer with a size that is the next power of two greater than or equal to the requested staging size,
+			//		with a minimum size of 65536 bytes.
+			//    - The function then resets the command pools and begins recording commands in the command buffers.
+			//		It also resets the fence to prepare it for the new copy operation.
+
+			// 5. **Submission**:
+			//    - The `submit` function is responsible for submitting the recorded command buffers for execution.
+			//		It ends the recording of the command buffers and submits them to the appropriate command queues.
+			//		It uses the semaphores to synchronize the execution of the command buffers between the copy, graphics, decoding video and compute queues.
+			//		The final submission also signals the fence to indicate the completion of the copy operation.
+
+			// 6. **Recycling**:
+			//    - After the copy operation is complete, the `CopyCMD` structure is added back to the `freelist` for reuse in future copy operations.
+			//		This helps to minimize the overhead of creating and destroying command buffers and synchronization primitives.
 			struct CopyCMD
 			{
 				VkCommandPool transferCommandPool = VK_NULL_HANDLE;
