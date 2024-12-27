@@ -1270,6 +1270,9 @@ namespace wi::helper
 		return 0;
 	}
 
+	// the argument passed to the parameter data is a wi::vector, which is defined as:
+	//		template<typename T, typename A = std::allocator<T>>
+	//		using vector = std::vector<T, A>;
 	template<template<typename T, typename A> typename vector_interface>
 	bool FileRead_Impl(const std::string& fileName, vector_interface<uint8_t, std::allocator<uint8_t>>& data, size_t max_read, size_t offset)
 	{
@@ -1384,6 +1387,11 @@ namespace wi::helper
 #ifdef PLATFORM_PS5
 		return "/app0";
 #else
+		// The returned current path depends on the current working directory.
+		// While running the executable normally, it's the folder containing the executable.
+		// While debugging, it's the folder set in CMakeLists.txt. For example, with the following line:
+		// set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+		// you can set the current path to the source directory where the CMakeLists.txt is located.
 		auto path = std::filesystem::current_path();
 		return FromWString(path.generic_wstring());
 #endif // PLATFORM_PS5

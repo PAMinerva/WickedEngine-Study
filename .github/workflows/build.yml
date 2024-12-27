@@ -1,3 +1,8 @@
+# Si avvale del servizio GitHub Actions, che permette di eseguire delle actions che possono essere configurate per eseguire
+# il processo di compilazione e distribuzione del software in remoto da parte di runner che girano su server virtuali dedicati di GitHub.
+# GitHub Actions permette di controllare la correttezza del codice durante la compilazione e consente la distrizione degli artefatti 
+# tramite scheda Actions del repository.
+
 name: Build
 
 on:
@@ -19,6 +24,12 @@ jobs:
       # and only our CMake config has a workaround for it
       CCACHE_NODIRECT: 1
     steps:
+      # L'azione actions/checkout è utilizzata per clonare il repository del codice sorgente nel runner di GitHub Actions.
+      # L'azione actions/checkout@v4 supporta anche diversi parametri opzionali per personalizzare il comportamento del checkout. 
+      # Ecco alcuni esempi:
+      #   with:
+      #     ref: [my-branch, sha-commit-id, my-tag]
+      # Clona un # Clona un branch, commit o tag specifico
     - uses: actions/checkout@v4
 
     - uses: microsoft/setup-msbuild@v2
@@ -74,8 +85,13 @@ jobs:
         move Editor\languages .\
         move Editor\fonts .\
 
-    - name: Package Editor
-      uses: actions/upload-artifact@v4
+    # L'azione upload-artifact di GitHub Actions è utilizzata per caricare artefatti generati durante l'esecuzione di un workflow. 
+    # Questi artefatti possono essere file di build, log, risultati di test, o qualsiasi altro file che desideri conservare e 
+    # rendere disponibile dopo l'esecuzione del workflow.
+    # Gli artefatti caricati utilizzando l'azione upload-artifact vengono conservati nei server di GitHub e associati al workflow che li ha generati. 
+    # Puoi accedere e scaricare questi artefatti tramite l'interfaccia web di GitHub nella scheda "Actions" del repository.
+        - name: Package Editor
+      uses: actions/upload-artifact@v4 # Versione 4 dell'azione upload-artifact
       with:
         name: Editor (Windows)
         path: |
@@ -101,6 +117,33 @@ jobs:
           package_bins: false
 
     steps:
+    # L'azione actions/cache@v4 di GitHub Actions è utilizzata per memorizzare nella cache i file o le directory tra le esecuzioni dei workflow. 
+    # Questo può ridurre significativamente i tempi di build e migliorare l'efficienza, evitando di dover ricostruire o riscaricare dipendenze 
+    # ogni volta che il workflow viene eseguito.
+    # In questo caso, la cache viene utilizzata per memorizzare i file di ccache, un compilatore di cache che può accelerare le compilazioni.
+    # path: ~/.cache/ccache è la directory predefinita utilizzata da ccache per memorizzare i file cache.
+    # key: ccache-${{ github.run_id }} specifica una chiave univoca per la cache. In questo caso, la chiave è composta dal 
+    # prefisso ccache- seguito dall'ID dell'esecuzione corrente del workflow (github.run_id). Questo garantisce che ogni esecuzione del workflow 
+    # abbia una chiave univoca.
+    # restore-keys: ccache specifica una lista di chiavi che possono essere utilizzate per ripristinare la cache. In questo caso, 
+    # se la cache con la chiave ccache non è disponibile, verrà tentato il ripristino utilizzando le chiavi elencate in restore-keys.
+    # save-always: true specifica che la cache deve essere salvata anche se il workflow fallisce. Questo garantisce che la cache
+    # venga aggiornata anche in caso di errori durante l'esecuzione del workflow.
+    # ccache (Compiler Cache) è uno strumento che memorizza nella cache i risultati delle compilazioni per accelerare le compilazioni successive. 
+    # Quando si utilizza ccache, i file oggetto generati dal compilatore vengono memorizzati nella cache. 
+    # Se il compilatore viene eseguito di nuovo con gli stessi input, ccache può restituire i file oggetto dalla cache invece di ricompilarli, 
+    # riducendo significativamente i tempi di compilazione.
+    # Quando si passa -DCMAKE_C_COMPILER_LAUNCHER=ccache a CMake, si configura CMake per utilizzare ccache come "launcher" per il compilatore C\C++. 
+    # Questo significa che ccache verrà eseguito ogni volta che il compilatore C\C++ viene invocato, 
+    # permettendo a ccache di gestire la cache dei risultati della compilazione.
+    # Effetti di -DCMAKE_C_COMPILER_LAUNCHER=ccache:
+    #   Accelerazione delle Compilazioni:
+    #     ccache memorizza nella cache i risultati delle compilazioni precedenti.
+    #     Se il compilatore viene eseguito di nuovo con gli stessi input, ccache può restituire i file oggetto dalla cache invece di ricompilarli.
+    #     Questo riduce significativamente i tempi di compilazione, specialmente per progetti di grandi dimensioni o per compilazioni incrementali.
+    #   Trasparenza:
+    #     L'uso di ccache è trasparente per il processo di build. Il compilatore viene invocato normalmente, ma ccache gestisce la cache in background.
+    #     Non è necessario modificare il codice sorgente o il processo di build esistente.
     - uses: actions/checkout@v4
 
     - name: Restore Ccache database

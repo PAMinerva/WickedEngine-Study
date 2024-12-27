@@ -10,7 +10,8 @@ namespace wi::eventhandler
 {
 	struct EventManager
 	{
-		// Note: list is used because events can also add events from within and that mustn't cause invalidation like vector
+		// Note: list is used because events can also add events from within and that mustn't cause invalidation like vector.
+		// unordered maps which associates integers to list of function pointers (subscribers) and list of functions (subscribers_once).
 		wi::unordered_map<int, std::list<std::function<void(uint64_t)>*>> subscribers;
 		wi::unordered_map<int, std::list<std::function<void(uint64_t)>>> subscribers_once;
 		std::mutex locker;
