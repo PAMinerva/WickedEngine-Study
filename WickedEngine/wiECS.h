@@ -278,6 +278,7 @@ namespace wi::ecs
 		}
 
 		// Create a new component and retrieve a reference to it
+		// Each component type will have its own entities and components vectors, along with its own lookup map
 		inline Component& Create(Entity entity)
 		{
 			// INVALID_ENTITY is not allowed!
@@ -291,6 +292,7 @@ namespace wi::ecs
 			assert(lookup.size() == components.size());
 
 			// Update the entity lookup table:
+			// Associate an entity with the index of the component in the components array
 			lookup[entity] = components.size();
 
 			// New components are always pushed to the end:
