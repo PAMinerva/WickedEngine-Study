@@ -56,6 +56,9 @@ namespace wi::shadercompiler
 #ifdef SHADERCOMPILER_ENABLED_DXCOMPILER
 	struct InternalState_DXC
 	{
+		// To make it more convenient for you to use GetProcAddress to call DxcCreateInstance,
+		// the DxcCreateInstanceProc typedef is provided by the dxcapi.h header file.
+		// While the DxcCreateInstance function is similar to CoCreateInstance, there's no COM involvement.
 		DxcCreateInstanceProc DxcCreateInstance = nullptr;
 
 		InternalState_DXC(const std::string& modifier = "")
@@ -64,6 +67,7 @@ namespace wi::shadercompiler
 #ifdef SHADERCOMPILER_XBOX_INCLUDED
 			wi::shadercompiler::xbox::GetSetSDKPath(); // Sets Xbox SDK path globally for DLL loading
 #endif // SHADERCOMPILER_XBOX_INCLUDED
+			// Load the dxcompiler.dll library
 			const std::string library = "dxcompiler" + modifier + ".dll";
 			HMODULE dxcompiler = wiLoadLibrary(library.c_str());
 #elif defined(PLATFORM_LINUX)
@@ -75,12 +79,16 @@ namespace wi::shadercompiler
 #endif
 			if (dxcompiler != nullptr)
 			{
+				// Load the DxcCreateInstance function from the library
 				DxcCreateInstance = (DxcCreateInstanceProc)wiGetProcAddress(dxcompiler, "DxcCreateInstance");
 				if (DxcCreateInstance != nullptr)
 				{
+					// Retrieve the DirectX Shader Compiler Interface using the DxcCreateInstance function with the CLSID_DxcCompiler CLSID
+					// as suggested in the documentation of the IDxcCompiler3 interface
 					ComPtr<IDxcCompiler3> dxcCompiler;
 					HRESULT hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxcCompiler));
 					assert(SUCCEEDED(hr));
+					// Get compiler version by querying the IDxcVersionInfo interface from the IDxcCompiler3 interface
 					ComPtr<IDxcVersionInfo> info;
 					hr = dxcCompiler->QueryInterface(IID_PPV_ARGS(&info));
 					assert(SUCCEEDED(hr));
@@ -142,7 +150,7 @@ namespace wi::shadercompiler
 		// https://github.com/microsoft/DirectXShaderCompiler/wiki/Using-dxc.exe-and-dxcompiler.dll#dxcompiler-dll-interface
 
 		wi::vector<std::wstring> args = {
-			//L"-res-may-alias",
+			//L"-res-may-alias", // Assume that unordered access views (UAVs) and shader resource views (SRVs) may alias
 			//L"-flegacy-macro-expansion",
 			//L"-no-legacy-cbuf-layout",
 			//L"-pack-optimized", // this has problem with tessellation shaders: https://github.com/microsoft/DirectXShaderCompiler/issues/3362
@@ -152,14 +160,36 @@ namespace wi::shadercompiler
 			//L"-Ges", // Enable strict mode
 			//L"-O0", // Optimization Level 0
 			//L"-enable-16bit-types",
-			L"-Wno-conversion",
+			L"-Wno-conversion", // Suppress warnings about implicit conversions that may change the value
 		};
 
 		if (has_flag(input.flags, Flags::DISABLE_OPTIMIZATION))
 		{
-			args.push_back(L"-Od");
+			// Optimization Level 0: Disables optimizations
+			// Additional options to include debug info in compiled shaders
+			// Required to debug shaders using PIX or RenderDoc
+			/*args.push_back(L"-Od");
+			args.push_back(L"-Zi");
+			args.push_back(L"-Qembed_debug");*/
+
+			if (input.format == ShaderFormat::HLSL6 || input.format == ShaderFormat::HLSL6_XS || input.format == ShaderFormat::HLSL5)
+			{
+				// Optimization Level 0: Disables optimizations
+				// Additional options to include debug info in compiled shaders
+				// Required to debug shaders using PIX or RenderDoc
+				args.push_back(L"-Od");
+				args.push_back(L"-Zi");
+				args.push_back(L"-Qembed_debug");
+			}
+			else if (input.format == ShaderFormat::SPIRV)
+			{
+				// generate NonSemantic.Shader.DebugInfo.100 extended instructions
+				// to include debug info in compiled shaders and support source-level
+				// shader debugging with tools such as RenderDoc
+				args.push_back(L"-fspv-debug=vulkan-with-source");
+			}
 		}
-		
+
 		if (has_flag(input.flags, Flags::KEEP_DEBUG_INFORMATION))
 		{
 			args.push_back(L"-Zi");
@@ -170,13 +200,15 @@ namespace wi::shadercompiler
 		{
 		case ShaderFormat::HLSL6:
 		case ShaderFormat::HLSL6_XS:
+			// rootsig-define is used to define a default root signature for shaders that have one defined in the shader source; see globals.hlsli
 			args.push_back(L"-rootsig-define"); args.push_back(L"WICKED_ENGINE_DEFAULT_ROOTSIGNATURE");
 			if (has_flag(input.flags, Flags::STRIP_REFLECTION))
 			{
+				// By default, reflection data is stored in the shader. The -Qstrip_reflect flag can be used to remove it.
 				args.push_back(L"-Qstrip_reflect"); // only valid in HLSL6 compiler
 			}
 			break;
-		case ShaderFormat::SPIRV:
+		case ShaderFormat::SPIRV: // https://github.com/microsoft/DirectXShaderCompiler/blob/main/docs/SPIR-V.rst
 			args.push_back(L"-spirv");
 			args.push_back(L"-fspv-target-env=vulkan1.3");
 			args.push_back(L"-fvk-use-dx-layout");
@@ -198,7 +230,6 @@ namespace wi::shadercompiler
 			args.push_back(L"-D"); args.push_back(L"DESCRIPTOR_SET_BINDLESS_STORAGE_IMAGE=" + std::to_wstring((int)wi::graphics::GraphicsDevice_Vulkan::DESCRIPTOR_SET_BINDLESS_STORAGE_IMAGE));
 			args.push_back(L"-D"); args.push_back(L"DESCRIPTOR_SET_BINDLESS_STORAGE_TEXEL_BUFFER=" + std::to_wstring((int)wi::graphics::GraphicsDevice_Vulkan::DESCRIPTOR_SET_BINDLESS_STORAGE_TEXEL_BUFFER));
 			args.push_back(L"-D"); args.push_back(L"DESCRIPTOR_SET_BINDLESS_ACCELERATION_STRUCTURE=" + std::to_wstring((int)wi::graphics::GraphicsDevice_Vulkan::DESCRIPTOR_SET_BINDLESS_ACCELERATION_STRUCTURE));
-
 			break;
 		case ShaderFormat::METAL:
 			args.push_back(L"-D"); args.push_back(L"__metal__");
@@ -218,13 +249,13 @@ namespace wi::shadercompiler
 			minshadermodel = ShaderModel::SM_6_2;
 			args.push_back(L"-enable-16bit-types");
 		}
-		
+
 		if (input.format == ShaderFormat::METAL)
 		{
 			minshadermodel = std::max(minshadermodel, ShaderModel::SM_6_6);
 		}
 
-		args.push_back(L"-T");
+		args.push_back(L"-T"); // Set target profile
 		switch (input.stage)
 		{
 		case ShaderStage::MS:
@@ -448,13 +479,13 @@ namespace wi::shadercompiler
 			return;
 		}
 
-		for (auto& x : input.defines)
+		for (auto& x : input.defines) // Define macros
 		{
 			args.push_back(L"-D");
 			wi::helper::StringConvert(x, args.emplace_back());
 		}
 
-		for (auto& x : input.include_directories)
+		for (auto& x : input.include_directories) // Include directories
 		{
 			args.push_back(L"-I");
 			wi::helper::StringConvert(x, args.emplace_back());
@@ -481,14 +512,18 @@ namespace wi::shadercompiler
 		DxcBuffer Source;
 		Source.Ptr = shadersourcedata.data();
 		Source.Size = shadersourcedata.size();
-		Source.Encoding = DXC_CP_ACP;
+		Source.Encoding = DXC_CP_ACP; // Assume BOM (Byte Order Mark) says UTF8 or UTF16 or this is ANSI text. See http://en.wikipedia.org/wiki/Byte_order_mark
 
+		// IDxcIncludeHandler is an interface for handling include directives.
+		// To customize the handling of include directives, you can provide an implementation of this interface.
 		struct IncludeHandler final : public IDxcIncludeHandler
 		{
 			const CompilerInput* input = nullptr;
 			CompilerOutput* output = nullptr;
 			ComPtr<IDxcIncludeHandler> dxcIncludeHandler;
 
+			// The LoadSource method is overrided.
+			// It is called by the compiler to load the source for an include file.
 			HRESULT STDMETHODCALLTYPE LoadSource(
 				_In_z_ LPCWSTR pFilename,                                 // Candidate filename.
 				_COM_Outptr_result_maybenull_ IDxcBlob** ppIncludeSource  // Resultant source object for included file, nullptr if not found.
@@ -497,6 +532,7 @@ namespace wi::shadercompiler
 				HRESULT hr = dxcIncludeHandler->LoadSource(pFilename, ppIncludeSource);
 				if (SUCCEEDED(hr))
 				{
+					// Save the path to the included file (usually globals.hlsli) in the dependencies list of the output
 					std::string& filename = output->dependencies.emplace_back();
 					wi::helper::StringConvert(pFilename, filename);
 				}
@@ -524,7 +560,7 @@ namespace wi::shadercompiler
 		hr = dxcUtils->CreateDefaultIncludeHandler(&includehandler.dxcIncludeHandler);
 		assert(SUCCEEDED(hr));
 
-		wi::vector<const wchar_t*> args_raw;
+		wi::vector<const wchar_t*> args_raw; // constant version of args; that is, args_raw is a vector of pointers to constant strings
 		args_raw.reserve(args.size());
 		for (auto& x : args)
 		{
@@ -589,12 +625,12 @@ namespace wi::shadercompiler
 			output.dependencies.push_back(input.shadersourcefilename);
 			output.shaderdata = (const uint8_t*)pShader->GetBufferPointer();
 			output.shadersize = pShader->GetBufferSize();
-			
+
 			// keep the blob alive == keep shader pointer valid!
 			auto internal_state = wi::allocator::make_shared<ComPtr<IDxcBlob>>();
 			*internal_state = pShader;
 			output.internal_state = internal_state;
-			
+
 #ifdef SHADERCOMPILER_APPLE_INCLUDED
 			if (input.format == ShaderFormat::METAL)
 			{
@@ -623,7 +659,7 @@ namespace wi::shadercompiler
 					LINK_IR(IRCompilerSetGlobalRootSignature)
 					LINK_IR(IRCompilerEnableGeometryAndTessellationEmulation)
 					//LINK_IR(IRRootSignatureDestroy)
-					
+
 					static IRDescriptorRange1 binding_resources[] =
 					{
 						{ .RangeType = IRDescriptorRangeTypeCBV, .BaseShaderRegister = arraysize(GraphicsDevice_Metal::RootLayout::root_cbvs), .RegisterSpace = 0, .OffsetInDescriptorsFromTableStart = IRDescriptorRangeOffsetAppend, .NumDescriptors = (arraysize(DescriptorBindingTable::CBV) - arraysize(GraphicsDevice_Metal::RootLayout::root_cbvs)), .Flags = IRDescriptorRangeFlagDataStaticWhileSetAtExecute },
@@ -668,10 +704,10 @@ namespace wi::shadercompiler
 							.ShaderVisibility = IRShaderVisibilityAll
 						},
 					};
-					
+
 					// Actually the static samplers don't work in Metal so I don't know why there is an API to describe them:
 					//	Instead they will be put into the binding sampler table as a workaround (**)
-					
+
 					//static IRStaticSamplerDescriptor static_samplers[] =
 					//{
 					//	{ .ShaderRegister = 100, .RegisterSpace = 0, .Filter = IRFilterMinMagMipLinear, .AddressU = IRTextureAddressModeClamp, .AddressV = IRTextureAddressModeClamp, .AddressW = IRTextureAddressModeClamp, .MipLODBias = 0, .MaxAnisotropy = 1, .ComparisonFunc = IRComparisonFunctionNever, .BorderColor = IRStaticBorderColorOpaqueBlack, .MinLOD = 0, .MaxLOD = FLT_MAX, .ShaderVisibility = IRShaderVisibilityAll },
@@ -688,7 +724,7 @@ namespace wi::shadercompiler
 					//
 					//	{ .ShaderRegister = 109, .RegisterSpace = 0, .Filter = IRFilterComparisonMinMagLinearMipPoint, .AddressU = IRTextureAddressModeClamp, .AddressV = IRTextureAddressModeClamp, .AddressW = IRTextureAddressModeClamp, .MipLODBias = 0, .MaxAnisotropy = 1, .ComparisonFunc = IRComparisonFunctionGreaterEqual, .BorderColor = IRStaticBorderColorOpaqueBlack, .MinLOD = 0, .MaxLOD = 0, .ShaderVisibility = IRShaderVisibilityAll },
 					//};
-					
+
 					static const IRVersionedRootSignatureDescriptor desc = {
 						.version = IRRootSignatureVersion_1_1,
 						.desc_1_1.Flags = IRRootSignatureFlags(IRRootSignatureFlagAllowInputAssemblerInputLayout | IRRootSignatureFlagCBVSRVUAVHeapDirectlyIndexed | IRRootSignatureFlagSamplerHeapDirectlyIndexed),
@@ -704,7 +740,7 @@ namespace wi::shadercompiler
 						assert(0);
 						IRErrorDestroy(pRootSigError);
 					}
-					
+
 					IRCompiler* pCompiler = IRCompilerCreate();
 					IRCompilerSetMinimumGPUFamily(pCompiler, IRGPUFamilyMetal3);
 					IRCompilerSetCompatibilityFlags(pCompiler, IRCompatibilityFlags(IRCompatibilityFlagBoundsCheck | IRCompatibilityFlagPositionInvariance | IRCompatibilityFlagTextureMinLODClamp | IRCompatibilityFlagSamplerLODBias));
@@ -772,7 +808,7 @@ namespace wi::shadercompiler
 						LINK_IR(IRShaderReflectionCopyMeshInfo)
 						LINK_IR(IRShaderReflectionCopyAmplificationInfo)
 						LINK_IR(IRShaderReflectionDestroy)
-						
+
 						// Add the numthreads information to end of the shader:
 						IRShaderReflection* reflection = IRShaderReflectionCreate();
 						bool success = IRObjectGetReflection(pOutIR, irstage, reflection);
@@ -835,11 +871,13 @@ namespace wi::shadercompiler
 				}
 			}
 #endif // SHADERCOMPILER_APPLE_INCLUDED
-			
+
 		}
 
 		if (input.format == ShaderFormat::HLSL6)
 		{
+			// When a shader is compiled with HLSL6, a hash of the shader is stored in the shader.
+			// The blob content returned using IDxcResult::GetOutput(DXC_OUT_SHADER_HASH, ...) maps to the DxcShaderHash structure
 			ComPtr<IDxcBlob> pHash = nullptr;
 			hr = pResults->GetOutput(DXC_OUT_SHADER_HASH, IID_PPV_ARGS(&pHash), nullptr);
 			assert(SUCCEEDED(hr));
@@ -1126,7 +1164,7 @@ namespace wi::shadercompiler
 	{
 #ifdef SHADERCOMPILER_ENABLED
 		std::scoped_lock lock(locker);
-		registered_shaders.insert(shaderfilename);
+		registered_shaders.insert(shaderfilename); // insert the shader name to the unordered set only if it's not already there
 #endif // SHADERCOMPILER_ENABLED
 	}
 	size_t GetRegisteredShaderCount()

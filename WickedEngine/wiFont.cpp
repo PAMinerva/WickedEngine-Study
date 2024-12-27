@@ -154,6 +154,7 @@ namespace wi::font
 				}
 			};
 
+			// update the height of the cursor size to include the next line of text
 			status.cursor.size.y = status.cursor.position.y + linebreak_size;
 			for (size_t i = 0; i < text_length; ++i)
 			{
@@ -176,7 +177,7 @@ namespace wi::font
 				{
 					word_wrap();
 					status.cursor.position.x = 0;
-					status.cursor.position.y += linebreak_size;
+					status.cursor.position.y += linebreak_size; // \n can be in the middle of a line, so we need to add the linebreak size here
 				}
 				else if (code == ' ')
 				{
@@ -193,6 +194,7 @@ namespace wi::font
 				}
 				else
 				{
+					// retrieve the user calculated glyph metrics from the lookup table
 					const Glyph& glyph = glyph_lookup.at(hash.raw);
 					const float glyphWidth = glyph.width;
 					const float glyphHeight = glyph.height;
@@ -201,8 +203,8 @@ namespace wi::font
 					const float fontScale = stbtt_ScaleForPixelHeight(&glyph.fontStyle->fontInfo, (float)params.size);
 
 					const size_t vertexID = size_t(status.quadCount) * 4;
-					vertexList.resize(vertexID + 4);
-					status.quadCount++;
+					vertexList.resize(vertexID + 4); // append additional 4 vertices to the vertex list for the current character in the text line
+					status.quadCount++; // add a new quad for the current character in the text line
 
 					if (status.start_new_word)
 					{
@@ -210,6 +212,7 @@ namespace wi::font
 					}
 					status.start_new_word = false;
 
+					// use the cursor (position of the prev character) to position the quad of the current character
 					const float left = status.cursor.position.x + glyphOffsetX;
 					const float right = left + glyphWidth;
 					const float top = status.cursor.position.y + glyphOffsetY;
@@ -237,12 +240,19 @@ namespace wi::font
 					vertexList[vertexID + 2].uv = float2(tc_left, tc_bottom);
 					vertexList[vertexID + 3].uv = float2(tc_right, tc_bottom);
 
+					// Get the character horizontal metrics to advance the cursor position
 					int advance, lsb;
 					stbtt_GetCodepointHMetrics(&glyph.fontStyle->fontInfo, code, &advance, &lsb);
 					status.cursor.position.x += advance * fontScale;
 
 					status.cursor.position.x += params.spacingX;
 
+					// If the text length is greater than 1 and the current character is not the last one,
+					// calculate the kerning between the current character and the next character and apply it to the cursor position.
+					// Kerning is the process of adjusting the spacing between specific pairs of characters
+					// to improve the visual appearance of the text. It ensures that the spacing between
+					// characters is visually pleasing and consistent. For example, the pair "AV" often
+					// requires kerning to avoid excessive space between the characters.
 					if (text_length > 1 && i < text_length - 1 && text[i + 1])
 					{
 						int code_next = (int)text[i + 1];
@@ -251,6 +261,8 @@ namespace wi::font
 					}
 				}
 
+				// Update the cursor size to include the next line of text.
+				// The cursor size specifies the size of the entire text from the first character.
 				status.cursor.size.x = std::max(status.cursor.size.x, status.cursor.position.x);
 				status.cursor.size.y = std::max(status.cursor.size.y, status.cursor.position.y + linebreak_size);
 			}
@@ -283,6 +295,8 @@ namespace wi::font
 		wi::renderer::LoadShader(ShaderStage::VS, vertexShader, "fontVS.cso");
 		wi::renderer::LoadShader(ShaderStage::PS, pixelShader, "fontPS.cso");
 
+		// Create two PSOs to render the font:
+		// one with no depth test, one with depth test enabled
 		for (int d = 0; d < DEPTH_TEST_MODE_COUNT; ++d)
 		{
 			PipelineStateDesc desc;
@@ -304,6 +318,7 @@ namespace wi::font
 		{
 			wi::vector<uint8_t> data;
 			helper::Decompress(liberation_sans_zstd, sizeof(liberation_sans_zstd), data);
+			// Add Liberation Sans font (as a FontStyle) to fontStyles vector and calculate font metrics: ascent, descent, lineGap
 			AddFontStyle("Liberation Sans", data.data(), data.size(), true);
 		}
 
@@ -358,6 +373,7 @@ namespace wi::font
 	{
 		std::scoped_lock lck(locker);
 
+		// upscaling used to go from logical to physical space
 		upscaling = std::max(1.5f, upscaling); // add some minimum upscaling, especially for SDF
 		static float upscaling_prev = 1;
 		const float upscaling_rcp = 1.0f / upscaling;
@@ -370,6 +386,7 @@ namespace wi::font
 		}
 
 		// If there are pending glyphs, render them and repack the atlas:
+		// See ParseText above
 		if (!pendingGlyphs.empty())
 		{
 			for (int32_t raw : pendingGlyphs)
@@ -394,8 +411,19 @@ namespace wi::font
 					}
 				}
 
+				// See stb_truetype.h
+				// fontScaling can be used to scale the glyph metrics from logical to physical space, based on the font size.
 				float fontScaling = stbtt_ScaleForPixelHeight(&fontStyle->fontInfo, height * upscaling);
 
+				// xoff/yoff are the offset in pixels from the glyph origin to the top-left of the bitmap
+				// yoff is the vertical offset from the glyph's origin to the top edge of the bitmap (in pixels misured with respect to the bitmap space).
+				// xoff is the horizontal offset from the glyph's origin to the left edge of the bitmap (in pixels misured with respect to the bitmap space).
+				// The bitmap's top-left corner is at (0, 0) in bitmap space. The glyph might not start at (0, 0) because of spacing within the character.
+				// glyph's origin usually is the intersection between the baseline and the leftmost point of the glyph.
+				// The space of the glyph is a logical space, with the x-axis going from left to right (similar to bitmap space) and the y-axis going
+				// from bottom to top (opposite to bitmap space).
+				// This means that both xoff and yoff usually are negative values because they are offsets (vectors) in bitmap space from the origin to
+				// the top-left corner of the bitmap.
 				Bitmap& bitmap = bitmap_lookup[hash.raw];
 				bitmap.width = 0;
 				bitmap.height = 0;
@@ -403,7 +431,7 @@ namespace wi::font
 				bitmap.yoff = 0;
 
 				if (is_sdf)
-				{
+				{	// See stb_truetype.h
 					unsigned char* data = stbtt_GetGlyphSDF(
 						&fontStyle->fontInfo,
 						fontScaling,
@@ -444,10 +472,19 @@ namespace wi::font
 				rect_lookup[hash.raw] = rect;
 
 				Glyph& glyph = glyph_lookup[hash.raw];
-				glyph.x = float(bitmap.xoff) * upscaling_rcp;
+				glyph.x = float(bitmap.xoff) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
+				// ascent * fontScaling is the offset from the the top of the glyph to the baseline,
+				// in pixels and scaled based on the font size.
+				// By adding yoff to ascent * fontScaling, we get the offset from the top of the bitmap
+				// to the top of the glyph, misured in pixels with respect to the bitmap space (similar to xoff,
+				// which is the offset from the left of the glyph to the left of the bitmap).
+				// glyph.x is the logical offset from the leftmost point of the glyph to the left border of the glyph
+				// in the glyph space.
+				// glyph.y is the logical offset from the top border of the glyph to the uppermost point of the glyph
+				// in the glyph space.
 				glyph.y = (float(bitmap.yoff) + float(fontStyle->ascent) * fontScaling) * upscaling_rcp;
-				glyph.width = float(bitmap.width) * upscaling_rcp;
-				glyph.height = float(bitmap.height) * upscaling_rcp;
+				glyph.width = float(bitmap.width) * upscaling_rcp;   // see PhysicalToLogical in wiCanvas.h
+				glyph.height = float(bitmap.height) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
 				glyph.fontStyle = fontStyle;
 			}
 			pendingGlyphs.clear();
@@ -461,6 +498,7 @@ namespace wi::font
 			}
 
 			// Perform packing and process the result if successful:
+			// pack multiple characters into one atlas
 			if (packer.pack(4096))
 			{
 				// Retrieve texture atlas dimensions:
@@ -470,12 +508,27 @@ namespace wi::font
 				const float inv_height = 1.0f / atlasHeight;
 
 				// Create the CPU-side texture atlas and fill with transparency (0):
+				// so each texel is an 8-bit value where 0 is no coverage (transparent), 255 is fully covered (opaque).
 				wi::vector<uint8_t> atlas(size_t(atlasWidth) * size_t(atlasHeight));
 				std::fill(atlas.begin(), atlas.end(), 0);
 
 				// Iterate all packed glyph rectangles:
 				for (auto& rect : packer.rects)
 				{
+					// Above the rect is built like this:
+					// 
+					// wi::rectpacker::Rect rect = {};
+					// rect.w = bitmap.width + 2;
+					// rect.h = bitmap.height + 2;
+					// 
+					// so this means that, for example, if the bitmap were 8x8, the rect will
+					// be 10x10 and packer.pack will calculate x and y based on the 10x10 rect.
+					// Now, we want to adjust the rect to fit the actual bitmap size, but
+					// subtracting 2 from the width and height of the rect is not enough,
+					// because this operation will move the 8x8 rect to the right and down
+					// by 2 pixels in the 10x10 area of the atlas reserved for the glyph.
+					// So, we need to move the rect to the left and up by 1 pixel to make
+					// the 8x8 bitmap fit the 10x10 rect in the center.
 					rect.x += 1;
 					rect.y += 1;
 					rect.w -= 2;
@@ -488,9 +541,12 @@ namespace wi::font
 					Glyph& glyph = glyph_lookup[hash];
 					Bitmap& bitmap = bitmap_lookup[hash];
 
+					// Copy, row by row, the glyph bitmap to the CPU-side texture atlas
+					// Note that a row in the glyph bitmap is a row in the CPU-side texture atlas but with a different pitch
+					// since the atlas includes all the rows of all the glyphs.
 					for (int row = 0; row < bitmap.height; ++row)
 					{
-						uint8_t* dst = atlas.data() + rect.x + (rect.y + row) * atlasWidth;
+ 						uint8_t* dst = atlas.data() + rect.x + (rect.y + row) * atlasWidth;
 						uint8_t* src = bitmap.data.data() + row * bitmap.width;
 						std::memcpy(dst, src, bitmap.width);
 					}
@@ -501,6 +557,7 @@ namespace wi::font
 					glyph.tc_top = float(rect.y);
 					glyph.tc_bottom = glyph.tc_top + float(rect.h);
 
+					// Normalize texture coordinates:
 					glyph.tc_left *= inv_width;
 					glyph.tc_right *= inv_width;
 					glyph.tc_top *= inv_height;
@@ -508,6 +565,10 @@ namespace wi::font
 				}
 
 				// Upload the CPU-side texture atlas bitmap to the GPU:
+				// The texture atlas is a 2D texture where each texel is 8-bit (R8_UNORM) with 0 is no coverage (transparent),
+				// 255 is fully covered (opaque).
+				// Also create an SRV to the texture atlas and write it to an appropriate heap (copied in a bindless one as well if
+				// slots are available; if that's the case, an index to the descriptor is stored in the internal state of the texture).
 				wi::texturehelper::CreateTexture(texture, atlas.data(), atlasWidth, atlasHeight, Format::R8_UNORM);
 				GetDevice()->SetName(&texture, "wi::font::texture");
 			}
@@ -568,29 +629,46 @@ namespace wi::font
 		{
 			return Cursor();
 		}
+		// Parse the text line to get the number of quads and the cursor position and size.
+		// The cursor is returned to be used as the starting point for the next text line.
+		// ParseText will also build the vertex buffer for the text line by using the current cursor position.
 		ParseStatus status = ParseText(text, text_length, params);
 
+		// quadCount is the number of quads, each wrapped by a texture representing a text character
 		if (status.quadCount > 0)
 		{
 			GraphicsDevice* device = wi::graphics::GetDevice();
+			// Allocate enough upload memory to store the vertex buffer with all the vertices composing the quads for a text line.
+			// All text lines will be stored in the same buffer, so the allocation needs to be built iteratively (see AllocateGPU).
+			// A reference to the shared buffer containing all text lines can be retrieved from the internal state of the
+			// command list associated with the current frame.
+			// Also create an SRV to shared buffer and write it to an appropriate heap (copied in a bindless one as well if
+			// slots are available; if that's the case, an index to the descriptor is stored in the internal state of the texture).
+			// Remember that the index of the descriptor (in the bindless heap or in the subresources_srv array) can be
+			// retrieved from the internal state of the buffer.
 			GraphicsDevice::GPUAllocation mem = device->AllocateGPU(sizeof(FontVertex) * status.quadCount * 4, cmd);
 			if (!mem.IsValid())
 			{
+				// Returning the current cursor, the next time the function is called, we can
+				// continue rendering the text from where it was interrupted.
 				return status.cursor;
 			}
-			CommitText(mem.data);
+			CommitText(mem.data); // copy the vertex data to the upload memory
 
 			FontConstants font = {};
-			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV);
-			font.buffer_offset = (uint32_t)mem.offset;
-			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV);
-			if (font.buffer_index < 0 || font.texture_index < 0)
+			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV (describing the vertex buffer) in the heap
+			font.buffer_offset = (uint32_t)mem.offset; // offset of the vertex buffer portion containing the current text line
+			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV); // get the index of the SRV (describing the texture atlas) in the heap
+			if (font.buffer_index < 0 || font.texture_index < 0) // does it support bindless only?
 			{
 				return status.cursor;
 			}
 
-			device->EventBegin("Font", cmd);
+			device->EventBegin("Font", cmd); // Starts a user-defined event for a timing capture of CPU activity, to be displayed in PIX
 
+			// If the PSO has not been created yet, save the PipelineState passed as first param as the active one in the command list and
+			// set it dirty so that a PSO based on it can be created before the actual draw call.
+			// It also set the root signature and invalidates all root bindings if necessary.
 			device->BindPipelineState(&PSO[params.isDepthTestEnabled()], cmd);
 
 			using namespace wi::math;
@@ -680,8 +758,18 @@ namespace wi::font
 			softness = params.softness * 0.5f;
 			font.softness_bolden_hdrscaling = pack_half3(softness, bolden, hdr_scaling);
 			font.softness_bolden_hdrscaling.y |= flags << 16u;
+			// The font constants for all text lines will be also loaded in the same buffer containing the vertex buffer with all text lines.
+			// However, the portion of buffer containing the constants for the current text line will be accessed in the
+			// vertex shader through a constant buffer (slot b0).
+			// The binder of the command list will be updated to store a reference to the buffer containing the font constants for all text lines
+			// and the offset to the font constants for the current text line.
+			// In the binder the related root parameter will be marked as dirty so that we can update the related root argument before the draw call.
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
+			// Check if the PSO needs to be created and set before invoking the actual draw call.
+			// Use instanced rendering to draw the four vertices of a quad quadCount times, so that the entire text line is rendered.
+			// The vertex data will be retrieved in the VS from the bindless_buffers array
+			// and the FontConstants data specified above from the ConstantBuffer font, see fontVS.hlsl, globals.hlsli, ShaderInterop_Font.h and ShaderInterop.h 
 			device->DrawInstanced(4, status.quadCount, 0, 0, cmd);
 
 			device->EventEnd(cmd);

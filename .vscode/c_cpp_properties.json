@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "defines": ["JPH_DEBUG_RENDERER", "SDL2", "LUA_USE_POSIX", "WI_UNORDERED_MAP_TYPE=2", "WickedEngine_SHADER_DIR=\"WickedEngine/shaders\""],
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/WickedEngine/**",
+                "/usr/include/SDL2/",
+                "${VULKAN_SDK}" // assume the VULKAN_SDK environment variable is set (usually in /etc/environment, 
+                                // manually adding VULKAN_SDK="/usr/include/vulkan")
+            ],
+            "cppStandard": "c++20"
+        },
+        {
+            "name": "Win32",
+            "defines": ["JPH_DEBUG_RENDERER", "UNICODE", "_UNICODE"],
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/WickedEngine/**",
+                "${VULKAN_SDK}/Include/vulkan"
+            ],
+            "cppStandard": "c++20"
+        }
+    ],
+    "version": 4
+}
