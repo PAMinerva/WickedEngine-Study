@@ -65,11 +65,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// Saves the lpCmdLine string into wi::arguments::params, which is an unordered_set<string>
     wi::arguments::Parse(lpCmdLine); // if you wish to use command line arguments, here is a good place to parse them...
 
-	Sample sample;  // Sample class instance
-
     // Initialize global strings
-    wi::helper::StringConvert(sample.GetTitle(), szTitle, MAX_LOADSTRING);
-    //wi::helper::StringConvert("Hello Triangle", szTitle, MAX_LOADSTRING);
+    wi::helper::StringConvert("Hello Triangle", szTitle, MAX_LOADSTRING);
     wi::helper::StringConvert("LVWndClass", szWindowClass, MAX_LOADSTRING);
 
     // Create a window
@@ -85,6 +82,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	application.infoDisplay.watermark = true;
 	application.infoDisplay.resolution = true;
 	application.infoDisplay.fpsinfo = true;
+
+	Sample sample;  // Sample class instance
 
     application.Initialize(); // Perform graphics initialization for the application (create device, swapchain, etc.)
     application.ActivatePath(sample.GetRenderPath3D());
