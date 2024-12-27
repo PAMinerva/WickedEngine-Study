@@ -69,7 +69,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     wi::helper::StringConvert("Hello Triangle", szTitle, MAX_LOADSTRING);
     wi::helper::StringConvert("LVWndClass", szWindowClass, MAX_LOADSTRING);
 
-    // Create a window
+	// Create a window and call Application::SetWindow, which creates a graphics device and swapchain for the window
     if (!CreateWnd(szTitle, szWindowClass, hInstance, nCmdShow))
     {
         return FALSE;
@@ -85,7 +85,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	Sample sample;  // Sample class instance
 
-    application.Initialize(); // Perform graphics initialization for the application (create device, swapchain, etc.)
+	application.Initialize(); // Initializes the job system to execute the initialization of the application components
     application.ActivatePath(sample.GetRenderPath3D());
 
 
@@ -195,8 +195,10 @@ BOOL CreateWnd(WCHAR szTitle[], WCHAR szWindowClass[], HINSTANCE hInstance, int 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
-
-    application.SetWindow(hWnd); // assign window handle (mandatory)
+	// assign window handle (mandatory)
+	// create a graphics device and swapchain for the window
+	// set shader path to the shader folder containing the compiled shader binaries
+    application.SetWindow(hWnd);
 
     return TRUE;
 }
