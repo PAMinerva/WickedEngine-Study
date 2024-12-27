@@ -163,7 +163,7 @@ namespace wi::jobsystem
 		for (int prio = 0; prio < int(Priority::Count); ++prio)
 		{
 			const Priority priority = (Priority)prio;
-			PriorityResources& res = internal_state.resources[prio];
+			PriorityResources& res = internal_state.resources[prio]; // res points to an element of PriorityResources::resources
 
 			// Calculate the actual number of worker threads we want:
 			switch (priority)
@@ -218,10 +218,14 @@ namespace wi::jobsystem
 						assert(0);
 					}
 #else
+				// Create and store a thread in the array PriorityResources::threads specifying a lamda function that
+				// will execute jobs until there are no more left or the job system is shot down.
+				// The lambda function is executed as soon as the thread is created.
 				std::thread& worker = res.threads.emplace_back([threadID, &res] {
 #endif
 					while (internal_state.alive.load())
 					{
+						// The worker thread will attempt to execute jobs by checking if there are any in the job queues.
 						res.work(threadID);
 
 						// finished with jobs, put to sleep
