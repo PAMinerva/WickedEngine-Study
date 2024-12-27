@@ -494,8 +494,13 @@ namespace wi::backlog
 		wi::font::SetCanvas(canvas); // always set here as it can be called from outside...
 		wi::font::Params params = font_params;
 		params.cursor = {};
+		// refitscroll is set to true when the text is changed (see post method below),
+		// so we can calculate the scroll amount based on the height of the text and the one of the canvas.
 		if (refitscroll)
 		{
+			// TextHeight calls ParseText, but it is only interested in the height of the cursor size (the vertex buffer creation is performed though).
+			// The cursor size specifies the size of the text from the first character.
+			// So we can calculate the scroll amount based on the height of the text and the one of the canvas.
 			const float textheight = wi::font::TextHeight(getText(), params);
 			const float limit = canvas.GetLogicalHeight() - 50;
 			if (scroll + textheight > limit)
@@ -505,7 +510,7 @@ namespace wi::backlog
 			refitscroll = false;
 		}
 		params.posX = 5;
-		params.posY = pos + scroll;
+		params.posY = pos + scroll; // posY will be negative if the text is higher than the canvas height; this will allow scrolling the text up
 		params.h_wrap = canvas.GetLogicalWidth() - params.posX;
 		if (colorspace != ColorSpace::SRGB)
 		{
@@ -533,6 +538,8 @@ namespace wi::backlog
 				params.color = font_params.color;
 				break;
 			}
+			// cursor is updated by the Draw function to keep track of the last position of the text
+			// so that we can scroll to bottom when new text is processed
 			params.cursor = wi::font::Draw(x.text, params, cmd);
 		}
 
