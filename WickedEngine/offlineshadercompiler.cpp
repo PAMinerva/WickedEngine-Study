@@ -376,7 +376,7 @@ int main(int argc, char* argv[])
 	std::cout << "\thlsl6_xs : \t\tCompile shaders to hlsl6 Xbox Series native (dx12) format (requires Xbox SDK)\n";
 	std::cout << "\tps5 : \t\t\tCompile shaders to PlayStation 5 native format (requires PlayStation 5 SDK)\n";
 	std::cout << "\trebuild : \t\tAll shaders will be rebuilt, regardless if they are outdated or not\n";
-	std::cout << "\tdisable_optimization : \tShaders will be compiled without optimizations\n";
+	std::cout << "\tdisable_optimization : \tShaders will be compiled without optimizations and including debug info\n";
 	std::cout << "\tstrip_reflection : \tReflection will be stripped from shader binary to reduce file size\n";
 	std::cout << "\tshaderdump : \t\tShaders will be saved to wiShaderDump.h C++ header file (can be combined with \"rebuild\")\n";
 	std::cout << "Command arguments used: ";
