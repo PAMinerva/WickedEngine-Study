@@ -304,14 +304,14 @@ namespace wi::math
 	}
 	constexpr uint64_t GetNextPowerOfTwo(uint64_t x)
 	{
-		--x;
-		x |= x >> 1;
-		x |= x >> 2;
-		x |= x >> 4;
-		x |= x >> 8;
-		x |= x >> 16;
-		x |= x >> 32u;
-		return ++x;
+		--x;             // handle case where x is already a power of two
+		x |= x >> 1;     // set the bit, if any, at the left of the most significant one to 1
+		x |= x >> 2;	 // set the 2 bits, if any, at the left of the most significant one to 1
+		x |= x >> 4;	 // set the 4 bits, if any, at the left of the most significant one to 1
+		x |= x >> 8;	 // set the 8 bits, if any, at the left of the most significant one to 1
+		x |= x >> 16;	 // set the 16 bits, if any, at the left of the most significant one to 1
+		x |= x >> 32u;	 // set the 32 bits, if any, at the left of the most significant one to 1
+		return ++x;		 // add 1 to set the bit at the right of the most significant one to 1, letting the rest be 0, which is the next power of two.
 	}
 
 	// A uniform 2D random generator for hemisphere sampling: http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
@@ -502,6 +502,8 @@ namespace wi::math
 
 		return retval;
 	}
+
+	// Map each color channel from 0.0-1.0 (float) to 0-255 (8 bit integer) and pack all of them into a single 32 bit integer
 	inline uint32_t CompressColor(const XMFLOAT4& color)
 	{
 		uint32_t retval = 0;

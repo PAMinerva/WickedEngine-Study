@@ -122,6 +122,8 @@ namespace wi::graphics
 		uint64_t frame_fence_values[BUFFERCOUNT] = {};
 		Microsoft::WRL::ComPtr<ID3D12Fence> frame_fence[BUFFERCOUNT][QUEUE_COUNT];
 
+		// Associate resources to binding slots (table member)
+		// and shader registers to root parameters (optimizer_graphics member)
 		struct DescriptorBinder
 		{
 			DescriptorBindingTable table;
@@ -159,6 +161,8 @@ namespace wi::graphics
 			semaphore_pool.push_back(semaphore);
 		}
 
+		// Command list context:
+		// allocators, lists, and other state that is needed to record commands
 		struct CommandList_DX12
 		{
 			Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocators[BUFFERCOUNT][QUEUE_COUNT];
@@ -470,9 +474,10 @@ namespace wi::graphics
 			uint64_t fenceValue = 0;
 			uint64_t cached_completedValue = 0;
 
+			// Descriptor heaps' progress is recorded by the GPU:
+			// See DescriptorBinder::flush function for more details
 			void SignalGPU(ID3D12CommandQueue* queue)
 			{
-				// Descriptor heaps' progress is recorded by the GPU:
 				fenceValue = allocationOffset.load();
 				dx12_check(queue->Signal(fence.Get(), fenceValue));
 				cached_completedValue = fence->GetCompletedValue();
