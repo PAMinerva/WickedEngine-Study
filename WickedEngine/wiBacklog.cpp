@@ -345,6 +345,11 @@ namespace wi::backlog
 		}
 
 		// This is explicitly scoped for scoped_lock!
+		// Since multiple threads can access and modify global variables (entries, refitscroll) and some standard
+		// outputs (see DebugOut), it is necessary to synchronize access to avoid race conditions and data corruption.
+		// To achieve this, std::scoped_lock is used to acquire the lock on the spin lock 'logLock' at the beginning of
+		// a code block and automatically release it at the end of the block. This ensures that the lock is always released,
+		// even if an exception occurs.
 		{
 			std::scoped_lock lock(logLock);
 
