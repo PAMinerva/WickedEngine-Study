@@ -7,10 +7,10 @@
 
 namespace wi::initializer
 {
-	static std::atomic_bool initializationStarted{ false };
-	static wi::jobsystem::context ctx;
-	static wi::Timer timer;
-	static std::atomic_bool systems[INITIALIZED_SYSTEM_COUNT]{};
+	static std::atomic_bool initializationStarted{ false };      // atomic flag indicating async initialization for multiple systems/component is started
+	static wi::jobsystem::context ctx;                           // job system context for async initialization
+	static wi::Timer timer;								         // timer to measure initialization time
+	static std::atomic_bool systems[INITIALIZED_SYSTEM_COUNT]{}; // atomic flags to check if a specific system is initialized
 
 	void InitializeComponentsImmediate()
 	{
@@ -74,6 +74,7 @@ namespace wi::initializer
 
 	}
 
+	// Check if one or all systems are initialized by verifying an atomic flag and if the job system is busy
 	bool IsInitializeFinished(INITIALIZED_SYSTEM system)
 	{
 		if (system == INITIALIZED_SYSTEM_COUNT)
