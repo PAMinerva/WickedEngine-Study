@@ -439,6 +439,7 @@ namespace wi::image
 		desc.ps = &pixelShader;
 		desc.rs = &rasterizerState;
 
+		// Create various PSOs based on combinations of blend mode, stencil mode, stencil reference mode, depth test mode and strip mode
 		for (int j = 0; j < BLENDMODE_COUNT; ++j)
 		{
 			desc.bs = &blendStates[j];
@@ -490,7 +491,7 @@ namespace wi::image
 
 
 
-
+		// Create all depth stencil states based on combinations of stencil mode, stencil reference mode and depth test mode
 		for (int i = 0; i < STENCILREFMODE_COUNT; ++i)
 		{
 			for (int d = 0; d < DEPTH_TEST_MODE_COUNT; ++d)
@@ -564,7 +565,7 @@ namespace wi::image
 			}
 		}
 
-
+		// Create various blend states
 		BlendState bd;
 		bd.render_target[0].blend_enable = true;
 		bd.render_target[0].src_blend = Blend::SRC_ALPHA;
@@ -626,6 +627,7 @@ namespace wi::image
 		bd.independent_blend_enable = false;
 		blendStates[BLENDMODE_INVERSE] = bd;
 
+		// Create various samplers
 		SamplerDesc samplerDesc;
 		samplerDesc.filter = Filter::MIN_MAG_MIP_LINEAR;
 		samplerDesc.address_u = TextureAddressMode::MIRROR;
