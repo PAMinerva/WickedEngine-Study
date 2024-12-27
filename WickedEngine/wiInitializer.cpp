@@ -128,7 +128,7 @@ namespace wi::initializer
 
 		wi::backlog::post("");
 
-		// 
+		// Start some threads that execute (in parallel) jobs (if available) stored in job queues (otherwise, they simply waits)
 		wi::jobsystem::Initialize();
 
 		wi::backlog::post("");
