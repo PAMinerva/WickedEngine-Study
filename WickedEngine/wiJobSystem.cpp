@@ -44,6 +44,7 @@ namespace wi::jobsystem
 				args.sharedmemory = nullptr;
 			}
 
+			// For each job in the group, execute the task
 			for (uint32_t j = groupJobOffset; j < groupJobEnd; ++j)
 			{
 				args.jobIndex = j;
@@ -90,7 +91,7 @@ namespace wi::jobsystem
 		std::mutex waitingMutex; // for unblocking a Wait()
 
 		// Start working on a job queue
-		//	After the job queue is finished, it can switch to an other queue and steal jobs from there
+		// After the job queue is finished, it can switch to an other queue and steal jobs from there
 		inline void work(uint32_t startingQueue)
 		{
 			Job job;
@@ -172,7 +173,7 @@ namespace wi::jobsystem
 		for (int prio = 0; prio < int(Priority::Count); ++prio)
 		{
 			const Priority priority = (Priority)prio;
-			PriorityResources& res = internal_state.resources[prio];
+			PriorityResources& res = internal_state.resources[prio]; // res points to an element of PriorityResources::resources
 
 			// Calculate the actual number of worker threads we want:
 			switch (priority)
@@ -196,6 +197,9 @@ namespace wi::jobsystem
 
 			for (uint32_t threadID = 0; threadID < res.numThreads; ++threadID)
 			{
+				// Create and store a thread in the array PriorityResources::threads specifying a lamda function that
+				// will execute jobs until there are no more left or the job system is shot down.
+				// The lambda function is executed as soon as the thread is created.
 				std::thread& worker = res.threads.emplace_back([threadID, priority, &res] {
 
 #ifdef PLATFORM_LINUX
@@ -231,6 +235,7 @@ namespace wi::jobsystem
 
 					while (internal_state.alive.load())
 					{
+						// The worker thread will attempt to execute jobs by checking if there are any in the related job queue.
 						res.work(threadID);
 
 						// finished with jobs, put to sleep
@@ -371,6 +376,9 @@ namespace wi::jobsystem
 			return;
 		}
 
+		// Add a job to a job queue in the array PriorityResources::jobQueuePerThread
+		// and wake up a sleeping thread to initialize a system.
+		// See emplace_back in the Initialize method above for more details
 		res.jobQueuePerThread[res.nextQueue.fetch_add(1) % res.numThreads].push_back(job);
 		res.sleepingCondition.notify_one();
 	}
