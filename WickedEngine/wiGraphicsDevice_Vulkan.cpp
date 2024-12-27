@@ -2032,6 +2032,7 @@ using namespace vulkan_internal;
 			}
 			else if (strcmp(availableExtension.extensionName, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME) == 0)
 			{
+				// This extension is required to use different color spaces (extended sRGB, HDR) in swapchain images other than the default ones (sRGB, RGB, etc.)
 				instanceExtensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 			}
 			else if (strcmp(availableExtension.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
@@ -2166,6 +2167,7 @@ using namespace vulkan_internal;
 				wi::vector<VkExtensionProperties> available_deviceExtensions(extensionCount);
 				vulkan_check(vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, available_deviceExtensions.data()));
 
+				// check if all required extensions are supported by a specific device
 				for (auto& x : required_deviceExtensions)
 				{
 					if (!checkExtensionSupport(x, available_deviceExtensions))
@@ -2200,7 +2202,7 @@ using namespace vulkan_internal;
 				properties2.pNext = &properties_1_1;
 				properties_1_1.pNext = &properties_1_2;
 				properties_1_2.pNext = &properties_1_3;
-				void** properties_chain = &properties_1_3.pNext;
+				void** properties_chain = &properties_1_3.pNext; // properties_chain stores the address of the pNext field of properties_1_3
 				sampler_minmax_properties = {};
 				acceleration_structure_properties = {};
 				raytracing_properties = {};
@@ -2210,12 +2212,12 @@ using namespace vulkan_internal;
 				conservativeRasterization = false;
 
 				sampler_minmax_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES;
-				*properties_chain = &sampler_minmax_properties;
-				properties_chain = &sampler_minmax_properties.pNext;
+				*properties_chain = &sampler_minmax_properties; // store the address of sampler_minmax_properties in properties_1_3.pNext
+				properties_chain = &sampler_minmax_properties.pNext; // now properties_chain stores the address of the pNext field of sampler_minmax_properties
 
 				depth_stencil_resolve_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_STENCIL_RESOLVE_PROPERTIES;
-				*properties_chain = &depth_stencil_resolve_properties;
-				properties_chain = &depth_stencil_resolve_properties.pNext;
+				*properties_chain = &depth_stencil_resolve_properties; // store the address of depth_stencil_resolve_properties in sampler_minmax_properties.pNext
+				properties_chain = &depth_stencil_resolve_properties.pNext; // now properties_chain stores the address of the pNext field of depth_stencil_resolve_properties
 
 				enabled_deviceExtensions = required_deviceExtensions;
 
@@ -2223,8 +2225,8 @@ using namespace vulkan_internal;
 				{
 					enabled_deviceExtensions.push_back(VK_EXT_IMAGE_VIEW_MIN_LOD_EXTENSION_NAME);
 					image_view_min_lod_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_MIN_LOD_FEATURES_EXT;
-					*features_chain = &image_view_min_lod_features;
-					features_chain = &image_view_min_lod_features.pNext;
+					*features_chain = &image_view_min_lod_features; // similar to the trick used above with properties_chain
+					features_chain = &image_view_min_lod_features.pNext; // etc.
 				}
 				if (checkExtensionSupport(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME, available_deviceExtensions))
 				{
@@ -2337,8 +2339,8 @@ using namespace vulkan_internal;
 				}
 #endif
 
-				*properties_chain = nullptr;
-				*features_chain = nullptr;
+				*properties_chain = nullptr; // break the property chain by setting the last pNext pointer to nullptr
+				*features_chain = nullptr;   // break the feature chain by setting the last pNext pointer to nullptr
 				vkGetPhysicalDeviceProperties2(dev, &properties2);
 				vkGetPhysicalDeviceFeatures2(dev, &features2);
 
@@ -2463,8 +2465,8 @@ using namespace vulkan_internal;
 			}
 
 			VkFormatProperties formatProperties = {};
-			vkGetPhysicalDeviceFormatProperties(physicalDevice, _ConvertFormat(Format::R11G11B10_FLOAT), &formatProperties);
-			if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, _ConvertFormat(Format::R11G11B10_FLOAT), &formatProperties); // specifies a three-component, 32-bit packed unsigned floating-point format
+			if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) // specifies if the format supports storage operations for an image
 			{
 				capabilities |= GraphicsDeviceCapability::UAV_LOAD_FORMAT_R11G11B10_FLOAT;
 			}
@@ -2479,7 +2481,7 @@ using namespace vulkan_internal;
 				capabilities |= GraphicsDeviceCapability::SAMPLER_MINMAX;
 			}
 
-			if (features2.features.depthBounds == VK_TRUE)
+			if (features2.features.depthBounds == VK_TRUE) // specifies if the implementation supports depth bounds tests
 			{
 				capabilities |= GraphicsDeviceCapability::DEPTH_BOUNDS_TEST;
 			}
@@ -2817,11 +2819,13 @@ using namespace vulkan_internal;
 
 		// Core in 1.1
 		allocatorInfo.flags =
-			VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |
-			VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+			VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |  // Enables usage of VK_KHR_dedicated_allocation extension
+			VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;		     // Enables usage of VK_KHR_bind_memory2 extension
 
 		if (features_1_2.bufferDeviceAddress)
 		{
+			// Enables usage of "buffer device address" feature, which allows you to use function
+			// `vkGetBufferDeviceAddress*` to get raw GPU pointer to a buffer and pass it for usage inside a shader.
 			allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		}
 
@@ -3106,6 +3110,9 @@ using namespace vulkan_internal;
 
 			// Transitions:
 			{
+				// Transition nullImage1D, nullImage2D and nullImage3D to general layout before any shader access
+				// Layout transitions needs to be performed in the middle of an image barrier to ensure that
+				// the new layout for a resource is available to the shaders that need to access the resource later on.
 				VkImageMemoryBarrier2 barrier = {};
 				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 				barrier.oldLayout = imageInfo.initialLayout;
@@ -3224,6 +3231,110 @@ using namespace vulkan_internal;
 				binding.pImmutableSamplers = &immutable_samplers[i];
 				binding.stageFlags = VK_SHADER_STAGE_ALL;
 			}
+
+		// TIMESTAMP_FREQUENCY is the frequency of the timestamp counter in ticks per second.
+		// The timestampPeriod is a property of the physical device that indicates the number of nanoseconds
+		// it takes for the timestamp counter to increment by one (tick). This value is crucial for converting
+		// the raw timestamp query results, which are in "ticks", into actual time values in nanoseconds.
+		// Vulkan offers several query types that allow you to query different types of information from the GPU. One such query type is the timestamp query.
+		// This provides your application with a mechanism to time the execution of commands on the GPU. As with the other query types,
+		// a query pool is then used to either directly fetch or copy over the results to the host.
+		// It’s important to know that timestamp queries differ greatly from how timing can be done on the CPU with e.g. the high performance counter.
+		// This is mostly due to how a GPU’s dispatches, overlaps and finishes work across different stages of the pipeline.
+		// So while technically you can specify any pipeline stage at which the timestamp should be written,
+		// a lot of stage combinations and orderings won’t give meaningful result.This also means that you you can’t compare timestamps taken on different queues.
+		// So while it may may sound reasonable to write timestamps for the vertex and fragment shader stage directly one after another,
+		// that will usually not return meaningful results due to how the GPU works.
+		// And so for this example, we take the same approach as some popular CPU/GPU profilers by only using the top and bottom stages of the pipeline.
+		// This combination is known to give proper approximate timing results on most GPUs.
+		// Not all GPUs support timestamp queries, so before using them we need to make sure that they can be used.
+		// This differs slightly from checking other features with a simple VkBool.
+		// For example, we can check if the timestampPeriod limit of the physical device is greater than zero.
+		// Another limit we need to check is timestampComputeAndGraphics. If this is VK_TRUE, all graphics and compute pipelines support timestamp queries and
+		// the above check is sufficient. If not, we need to check if the queue we want to use supports timestamps:
+		//
+		//		if (!device_limits.timestampComputeAndGraphics)
+		//		{
+		//			// Check if the graphics queue used in this sample supports time stamps
+		//			VkQueueFamilyProperties graphics_queue_family_properties = device->get_suitable_graphics_queue().get_properties();
+		//			if (graphics_queue_family_properties.timestampValidBits == 0)
+		//			{
+		//			throw std::runtime_error{ "The selected graphics queue family does not support timestamp queries!" };
+		//			}
+		//		}
+		//
+		// As with all query types, we first need to create a pool for the timestamp queries. This is used to store and read back the results.
+		// Before we can start writing data to the query pool, we need to reset it. This is done using vkCmdResetQueryPool at the start of the command buffer.
+		// Unlike getting CPU side timing information that can be queried immediately, with GPU time stamps we need to tell the implementation inside a
+		// command buffer when/where to write timestamps instead. The results are then fetched afterwards.
+		// This is done inside the command buffer with vkCmdWriteTimestamp.This function will request a timestamp to be written from the GPU for a
+		// certain pipeline stage and write that value to memory.
+		// Reading back the results can be done in two ways:
+		//	- Copy the results into a VkBuffer inside the command buffer using vkCmdCopyQueryPoolResults
+		//	- Get the results after the command buffer has finished executing using vkGetQueryPoolResults
+		// After we have read back the results to the host, we are ready to interpret them. E.g. for displaying them in a user interface.
+		// The results we got back do not actually contain a time value, but rather a number of "ticks".
+		// So to get the actual time value we need to translate these values first. This is done using timestampPeriod limit of the physical device.
+		// It contains the number of nanoseconds it takes for a timestamp query value to be increased by 1 ("tick").
+		// The formula used here is: 1 / timestampPeriod * 1e9, which converts the period to frequency in Hz (ticks per second).
+		// This conversion is essential for accurately measuring the time taken by GPU operations.
+		// TIMESTAMP_FREQUENCY = uint64_t(1.0 / double(properties2.properties.limits.timestampPeriod) * 1000 * 1000 * 1000);
+		//
+		// // Dynamic PSO states:
+		// pso_dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT);
+		// pso_dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT);
+		// pso_dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_REFERENCE);
+		// pso_dynamicStates.push_back(VK_DYNAMIC_STATE_BLEND_CONSTANTS);
+		// if (CheckCapability(GraphicsDeviceCapability::DEPTH_BOUNDS_TEST))
+		// {
+		// 	pso_dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_BOUNDS);
+		// }
+		// if (CheckCapability(GraphicsDeviceCapability::VARIABLE_RATE_SHADING))
+		// {
+		// 	pso_dynamicStates.push_back(VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR);
+		// }
+		//
+		// // Specify that the stride state in VkVertexInputBindingDescription will be ignored and
+		// // must be set dynamically with vkCmdBindVertexBuffers2 before any draw call.
+		// pso_dynamicStates.push_back(VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE);
+		//
+		// dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		// dynamicStateInfo.pDynamicStates = pso_dynamicStates.data();
+		// dynamicStateInfo.dynamicStateCount = (uint32_t)pso_dynamicStates.size();
+		//
+		// dynamicStateInfo_MeshShader.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		// dynamicStateInfo_MeshShader.pDynamicStates = pso_dynamicStates.data();
+		// dynamicStateInfo_MeshShader.dynamicStateCount = (uint32_t)pso_dynamicStates.size() - 1; // don't include VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE for mesh shader
+		//
+		// // Note: limiting descriptors by constant amount is needed, because the bindless sets are bound to multiple slots to match DX12 layout
+		// //	And binding to multiple slot adds up towards limits, so the limits will be quickly reached for some descriptor types
+		// //	But not all descriptor types have this problem, like storage buffers that are not bound for multiple slots usually
+		// //	Ideally, this shouldn't be the case, because Vulkan could have it's own layout in shaders
+		// const uint32_t limit_bindless_descriptors = 100000u;
+		//
+		// if (features_1_2.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessSampledImages.init(this, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, std::min(limit_bindless_descriptors, properties_1_2.maxDescriptorSetUpdateAfterBindSampledImages / 4));
+		// }
+		// if (features_1_2.descriptorBindingUniformTexelBufferUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessUniformTexelBuffers.init(this, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, std::min(limit_bindless_descriptors, properties_1_2.maxDescriptorSetUpdateAfterBindSampledImages / 4));
+		// }
+		// if (features_1_2.descriptorBindingStorageBufferUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessStorageBuffers.init(this, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, properties_1_2.maxDescriptorSetUpdateAfterBindStorageBuffers / 4);
+		// }
+		// if (features_1_2.descriptorBindingStorageImageUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessStorageImages.init(this, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, std::min(limit_bindless_descriptors, properties_1_2.maxDescriptorSetUpdateAfterBindStorageImages / 4));
+		// }
+		// if (features_1_2.descriptorBindingStorageTexelBufferUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessStorageTexelBuffers.init(this, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, std::min(limit_bindless_descriptors, properties_1_2.maxDescriptorSetUpdateAfterBindStorageImages / 4));
+		// }
+		// if (features_1_2.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE)
+		// {
+		// 	allocationhandler->bindlessSamplers.init(this, VK_DESCRIPTOR_TYPE_SAMPLER, 256);
 		}
 
 		// Bindless:

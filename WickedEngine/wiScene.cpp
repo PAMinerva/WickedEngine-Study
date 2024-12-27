@@ -104,6 +104,8 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(instanceUploadBuffer); ++i)
 			{
+				// instanceUploadBuffer will be copied to instanceBuffer in wi::renderer::UpdateRenderData, called by wi:RenderPath3D::Render,
+				// called by Application::Render, called by Application::Run, called by main.
 				device->CreateBuffer(&desc, nullptr, &instanceUploadBuffer[i]);
 				device->SetName(&instanceUploadBuffer[i], "Scene::instanceUploadBuffer");
 			}
@@ -142,6 +144,7 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(materialUploadBuffer); ++i)
 			{
+				// materialUploadBuffer will be copied to materialBuffer in wi::renderer::UpdateRenderData (see comment above)
 				device->CreateBuffer(&desc, nullptr, &materialUploadBuffer[i]);
 				device->SetName(&materialUploadBuffer[i], "Scene::materialUploadBuffer");
 			}
@@ -331,6 +334,7 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(geometryUploadBuffer); ++i)
 			{
+				// geometryUploadBuffer will be copied to geometryBuffer in wi::renderer::UpdateRenderData (see comment above)
 				device->CreateBuffer(&desc, nullptr, &geometryUploadBuffer[i]);
 				device->SetName(&geometryUploadBuffer[i], "Scene::geometryUploadBuffer");
 			}
@@ -368,12 +372,15 @@ namespace wi::scene
 
 		RunExpressionUpdateSystem(ctx);
 
+		// Store in geometryArrayMapped the SRV indices to the various buffers (included in the global vertex buffer)
 		RunMeshUpdateSystem(ctx);
 
 		RunVideoUpdateSystem(ctx);
 
+		// Store in materialArrayMapped various material parameters
 		RunMaterialUpdateSystem(ctx);
 
+		// Wait for all previous jobs to finish
 		wi::jobsystem::Wait(ctx); // dependencies
 
 		WaitBuildTopDownHierarchy();
@@ -388,6 +395,8 @@ namespace wi::scene
 
 		wi::jobsystem::Wait(ctx); // dependencies
 
+		// Store in instanceArrayMapped various object parameters, such as the offset to the vertex information in the global vertex buffer
+		// Calculate if an object is visible or not (update occullusion culling for object)
 		RunObjectUpdateSystem(ctx);
 
 		RunCameraUpdateSystem(ctx);
@@ -3957,8 +3966,10 @@ namespace wi::scene
 			if (geometryArrayMapped != nullptr)
 			{
 				ShaderGeometry geometry = shader_geometry_null;
-				geometry.ib = mesh.ib.descriptor_srv;
+				geometry.ib = mesh.ib.descriptor_srv; // SRV created in MeshComponent::CreateRenderData
+	
 				geometry.ib_reorder = mesh.ib_reorder.descriptor_srv;
+
 				if (mesh.so_pos.IsValid())
 				{
 					geometry.vb_pos_wind = mesh.so_pos.descriptor_srv;
@@ -4456,6 +4467,9 @@ namespace wi::scene
 
 				const TransformComponent& transform = *transforms.GetComponent(entity);
 
+				// Get the world matrix associated with the mesh,build the 8 corners of the bounding box,
+				// transform them to world space, calculate the minimum and maximum points and
+				// build the world space bounding box from them.
 				XMMATRIX W = XMLoadFloat4x4(&transform.world);
 				aabb = mesh.aabb.transform(W);
 
@@ -4497,8 +4511,8 @@ namespace wi::scene
 					}
 				}
 
-				object.center = aabb.getCenter();
-				object.radius = aabb.getRadius();
+				object.center = aabb.getCenter(); // calculate the center of the object by using the median point formula applied to the bounding box
+				object.radius = aabb.getRadius(); // calculate the vector from the center to one of the corners of the bounding box to get its length
 
 				// LOD select:
 				if (mesh.subsets_per_lod > 0)
@@ -4577,6 +4591,10 @@ namespace wi::scene
 				XMFLOAT4X4 worldMatrix = matrix_objects[args.jobIndex];
 
 				inst.transformRaw.Create(worldMatrix);
+				// If position coordinates are in UNORM format, we need to convert them to back to floats
+				// by inverting the UNORM mapping during MeshComponent::CreateRenderData
+				// See inverse_lerp in CommonInclude.h to understand that we need both a scaling
+				// (to invert the division by (max - min)) and a translation (to invert the subtraction of min from position)
 				if (IsFormatUnorm(mesh.position_format) && !mesh.so_pos.IsValid())
 				{
 					// The UNORM correction is only done for the GPU data!

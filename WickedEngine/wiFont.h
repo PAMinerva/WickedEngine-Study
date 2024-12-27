@@ -103,7 +103,7 @@ namespace wi::font
 			int size = WIFONTSIZE_DEFAULT,
 			Alignment h_align = WIFALIGN_LEFT,
 			Alignment v_align = WIFALIGN_TOP,
-			wi::Color color = wi::Color(255, 255, 255, 255),
+			wi::Color color = wi::Color(255, 255, 255, 255), // white
 			wi::Color shadowColor = wi::Color(0, 0, 0, 0)
 		) :
 			position(posX, posY, 0),

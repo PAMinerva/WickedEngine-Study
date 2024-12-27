@@ -457,18 +457,35 @@ if (ENABLE_OBJECT_STREAM)
 	)
 endif()
 
+# ${CMAKE_SYSTEM_NAME}": Variabile CMake che contiene il nome del sistema operativo. Ad esempio, su Windows, questa variabile sarà "Windows".
 if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
 	# Add natvis file
+	# Aggiungere un file .natvis alla lista dei file sorgente in un progetto CMake serve a migliorare l'esperienza di debug in Visual Studio. 
+	# I file .natvis (Native Visualizer) sono utilizzati per definire come le strutture dati personalizzate devono essere visualizzate durante il debug.
+	# Ad esempio, Il file Jolt.natvis contiene la seguente definizione:
+	# 	<Type Name="JPH::Color">
+    #		<DisplayString>r={(int)r}, g={(int)g}, b={(int)b}, a={(int)a}</DisplayString>
+	#	</Type>
+	# Questo permette di visualizzare un oggetto di tipo JPH::Color color(255.0f, 128.0f, 64.0f, 32.0f) come "r=255, g=128, b=64, a=32".
 	set(JOLT_PHYSICS_SRC_FILES ${JOLT_PHYSICS_SRC_FILES} ${JOLT_PHYSICS_ROOT}/Jolt.natvis)
 endif()
 
 # Group source files
+# source_group: Comando CMake utilizzato per organizzare i file sorgente in gruppi all'interno di un progetto Visual Studio. 
+# Questo rende più facile navigare tra i file nel Solution Explorer di Visual Studio.
+# TREE: Specifica che i file devono essere organizzati in una struttura ad albero che rispecchia la struttura delle directory a 
+# partire dalla radice specificata.
+# FILES: Specifica i file che devono essere inclusi nei gruppi.
 source_group(TREE ${JOLT_PHYSICS_ROOT} FILES ${JOLT_PHYSICS_SRC_FILES})
 
 # Create Jolt lib
+# Di default, la libreria sarà di tipo statica (STATIC)
 add_library(Jolt ${JOLT_PHYSICS_SRC_FILES})
 add_library(Jolt::Jolt ALIAS Jolt)
 
+# Si entra in questo blocco se l'utente passa -DBUILD_SHARED_LIBS=ON al comando cmake.
+# Se si entra in questyo blocco viene definite le macro di precompilazione JPH_SHARED_LIBRARY e 
+# JPH_BUILD_SHARED_LIBRARY che dovrebbero cambiare il tipo di libreria da statico a shared in fase di compilazione.
 if (BUILD_SHARED_LIBS)
 	# Set default visibility to hidden
 	set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -503,15 +520,32 @@ target_include_directories(Jolt PUBLIC
 	$<INSTALL_INTERFACE:include/>)
 
 # Code coverage doesn't work when using precompiled headers
+# CMAKE_GENERATOR: Variabile CMake che contiene il nome del generatore utilizzato (ad esempio, Ninja, Unix Makefiles, Visual Studio, ecc.).
+# MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
 if (CMAKE_GENERATOR STREQUAL "Ninja Multi-Config" AND MSVC)
 	# The Ninja Multi-Config generator errors out when selectively disabling precompiled headers for certain configurations.
 	# See: https://github.com/jrouwe/JoltPhysics/issues/1211
+	# target_precompile_headers: Comando CMake utilizzato per specificare gli header precompilati per un target.
+	# Imposta un file PCH (precompiled header), Jolt.h, in questo caso per velocizzare la compilazione del target Jolt.
 	target_precompile_headers(Jolt PRIVATE "${JOLT_PHYSICS_ROOT}/Jolt.h")
 else()
+	# $<NOT:$<CONFIG:ReleaseCoverage>>: Condizione che verifica se la configurazione corrente non è ReleaseCoverage
+	# Jolt.h viene utilizzato come precompiled header solo se la configurazione non è ReleaseCoverage.
 	target_precompile_headers(Jolt PRIVATE "$<$<NOT:$<CONFIG:ReleaseCoverage>>:${JOLT_PHYSICS_ROOT}/Jolt.h>")
 endif()
 
+#if (NOT CPP_EXCEPTIONS_ENABLED)
+	# Disable use of exceptions in MSVC's STL
+	# $<BOOL:${MSVC}>: Condizione che verifica se il compilatore è MSVC
+	# _HAS_EXCEPTIONS=0: Macro di precompilazione che disabilita l'uso delle eccezioni nell'STL di MSVC in Jolt.
+#	target_compile_definitions(Jolt PUBLIC $<$<BOOL:${MSVC}>:_HAS_EXCEPTIONS=0>)
+#endif()
+
 # Set the debug/non-debug build flags
+# $<CONFIG:Debug>: Condizione che verifica se la configurazione corrente è Debug
+# $<$<CONFIG:Release,Distribution,ReleaseASAN,ReleaseUBSAN,ReleaseTSAN,ReleaseCoverage>: Condizione che verifica se la configurazione 
+# di build corrente è una delle seguenti: Release, Distribution, ReleaseASAN, ReleaseUBSAN, ReleaseTSAN, ReleaseCoverage.
+# virgolette intorno a secondo argomento necessarie solo quando questo contiene spazi.
 target_compile_definitions(Jolt PUBLIC "$<$<CONFIG:Debug>:_DEBUG>")
 target_compile_definitions(Jolt PUBLIC "$<$<CONFIG:Release,Distribution,ReleaseASAN,ReleaseUBSAN,ReleaseTSAN,ReleaseCoverage>:NDEBUG>")
 
@@ -519,6 +553,8 @@ target_compile_definitions(Jolt PUBLIC "$<$<CONFIG:Release,Distribution,ReleaseA
 target_compile_definitions(Jolt PUBLIC "$<$<CONFIG:ReleaseASAN,ReleaseTSAN>:JPH_DISABLE_TEMP_ALLOCATOR;JPH_DISABLE_CUSTOM_ALLOCATOR>")
 
 # Setting floating point exceptions
+# CMAKE_CXX_COMPILER_ID variabile CMake che contiene una stringa che identifica il compilatore C++ utilizzato per buildare il progetto.
+# Esempi sono "GNU", "Clang", "AppleClang", "MSVC", ecc.
 if (FLOATING_POINT_EXCEPTIONS_ENABLED AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	target_compile_definitions(Jolt PUBLIC "$<$<CONFIG:Debug,Release>:JPH_FLOATING_POINT_EXCEPTIONS_ENABLED>")
 endif()
@@ -544,6 +580,7 @@ if (CROSS_PLATFORM_DETERMINISTIC)
 endif()
 
 # Setting to determine number of bits in ObjectLayer
+# Definisce una macro di precompilazione (JPH_OBJECT_LAYER_BITS) assegnandole il valore di OBJECT_LAYER_BITS
 if (OBJECT_LAYER_BITS)
 	target_compile_definitions(Jolt PUBLIC JPH_OBJECT_LAYER_BITS=${OBJECT_LAYER_BITS})
 endif()
@@ -587,6 +624,12 @@ if (ENABLE_OBJECT_STREAM)
 endif()
 
 # Emit the instruction set definitions to ensure that child projects use the same settings even if they override the used instruction sets (a mismatch causes link errors)
+# function definisce una funzione CMake 
+# In questo caso la funzione è chiamata EMIT_X86_INSTRUCTION_SET_DEFINITIONS. 
+# Questa funzione aggiunge definizioni di precompilazione al target Jolt in base alle variabili di configurazione che indicano l'uso di specifici 
+# set di istruzioni x86.
+# USE_AVX512, USE_AVX2, e le altre variabili non sono variabili predefinite di CMake. Devono essere passate dall'utente a cmake tramite il comando -D
+# oppure definite, tramite set, nel file CMake del progetto che invoca quesrto file (Jolt.cmake).
 function(EMIT_X86_INSTRUCTION_SET_DEFINITIONS)
 	if (USE_AVX512)
 		target_compile_definitions(Jolt PUBLIC JPH_USE_AVX512)
@@ -646,7 +689,7 @@ else()
 			target_link_options(Jolt PUBLIC -sMEMORY64)
 		endif()
 	elseif ("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64" OR "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "AMD64" OR "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86" OR "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "i386")
-		# x86 and x86_64
+		# x86 and x86_64 for GNU and Clang
 		# On 32-bit builds we need to default to using SSE instructions, the x87 FPU instructions have higher intermediate precision
 		# which will cause problems in the collision detection code (the effect is similar to leaving FMA on, search for
 		# JPH_PRECISE_MATH_ON for the locations where this is a problem).
@@ -686,6 +729,14 @@ else()
 endif()
 
 # On Unix flavors we need the pthread library
+# Aggiunge l'opzione di compilazione -pthread al target Jolt
+# Aggiunge l'opzione di linking -pthread al target Jolt.
+# L'opzione -pthread viene passata sia al compilatore che al linker perché è necessaria per abilitare il supporto per il 
+# threading POSIX (pthread) durante entrambe le fasi di compilazione e linking.
+# Durante la fase di compilazione, l'opzione -pthread informa il compilatore che il codice sorgente utilizza la libreria pthread. 
+# Questo può influenzare la generazione del codice, ad esempio, definendo una macro che abilita alcune funzioni di threading e sincronizzazione.
+# Durante la fase di linking, l'opzione -pthread assicura che il linker colleghi correttamente la libreria pthread al programma.
+# Questo è necessario per risolvere le dipendenze delle funzioni di threading utilizzate nel codice.
 if (NOT ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows") AND NOT EMSCRIPTEN)
 	target_compile_options(Jolt PUBLIC -pthread)
 	target_link_options(Jolt PUBLIC -pthread)

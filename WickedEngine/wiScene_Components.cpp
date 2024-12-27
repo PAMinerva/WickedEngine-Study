@@ -764,12 +764,12 @@ namespace wi::scene
 			for (size_t i = 0; i < vertex_positions.size(); ++i)
 			{
 				const XMFLOAT3& pos = vertex_positions[i];
-				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i];
-				
+				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i]; // only relevant if you want the wind affects vertex position
+
 				Vertex_POS16 v;
 				v.FromFULL(aabb, pos, wind);
 				XMFLOAT3 p = v.GetPOS(aabb);
-				if (
+				if ( // check if the float 32 bit to unotm 16 bit conversion and vice versa is lossless
 					std::abs(p.x - pos.x) <= target_precision &&
 					std::abs(p.y - pos.y) <= target_precision &&
 					std::abs(p.z - pos.z) <= target_precision &&
@@ -841,7 +841,7 @@ namespace wi::scene
 			}
 		}
 
-		const size_t position_stride = GetFormatStride(position_format);
+		const size_t position_stride = GetFormatStride(position_format); // stride is 8 bytes for R16G16B16A16_UNORM
 
 		GPUBufferDesc bd;
 		if (device->CheckCapability(GraphicsDeviceCapability::CACHE_COHERENT_UMA))
@@ -860,6 +860,9 @@ namespace wi::scene
 			bd.misc_flags |= ResourceMiscFlag::RAY_TRACING;
 		}
 		const uint64_t alignment = device->GetMinOffsetAlignment(&bd);
+
+		// This buffer will contain various vertex data, and index data as well.
+		// Each data type will be aligned as if we had multiple buffers included in one.
 		bd.size =
 			align(uint64_t(vertex_positions.size() * position_stride), alignment) + // position will be first to have 0 offset for flexible alignment!
 			align(uint64_t(provoke.size() * GetProvokingIndexStride()), alignment) +
@@ -1017,7 +1020,7 @@ namespace wi::scene
 					const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i];
 					Vertex_POS16 vert;
 					vert.FromFULL(aabb, pos, wind);
-					std::memcpy(vertices + i, &vert, sizeof(vert));
+					std::memcpy(vertices + i, &vert, sizeof(vert)); // copy vertex data to buffer
 				}
 			}
 			break;
@@ -1107,7 +1110,7 @@ namespace wi::scene
 				ib.size = indices.size() * sizeof(uint32_t);
 				uint32_t* indexdata = (uint32_t*)(buffer_data + buffer_offset);
 				buffer_offset += align(ib.size, alignment);
-				std::memcpy(indexdata, indices.data(), ib.size);
+				std::memcpy(indexdata, indices.data(), ib.size); // copy index data to buffer
 			}
 			else
 			{
@@ -1372,10 +1375,18 @@ namespace wi::scene
 		else
 		{
 			// If suballocation was not successful, a standalone buffer can be created instead:
+			// Create a staging buffer with vertex and index data and copy it to a GPU buffer (generalBuffer holds a pointer to it)
 			bool success = device->CreateBuffer2(&bd, init_callback, &generalBuffer);
 			assert(success);
 			device->SetName(&generalBuffer, "MeshComponent::generalBuffer");
 		}
+
+		// Create SRVs for the various vertex buffers and index buffer contained in generalBuffer:
+		// Each SRV will expose the corresponding buffer data (offset and size) in generalBuffer.
+		// If bindless resources are used, descriptor_srv will store the bindless index of the descriptor in the bindless portion of the shader-visible heap.
+		// Otherwise, descriptor_srv will store an integer to index in an array of SingleDescriptor internally stored in generalBuffer,
+		// where each SingleDescriptor stores a handle to a descriptor in the corresponding descriptor heap.
+		// assert(ib.IsValid());
 
 		const Format ib_format = GetIndexFormat() == IndexBufferFormat::UINT32 ? Format::R32_UINT : Format::R16_UINT;
 
@@ -1998,7 +2009,7 @@ namespace wi::scene
 	}
 	size_t MeshComponent::GetMemoryUsageCPU() const
 	{
-		size_t size = 
+		size_t size =
 			vertex_positions.size() * sizeof(XMFLOAT3) +
 			vertex_normals.size() * sizeof(XMFLOAT3) +
 			vertex_tangents.size() * sizeof(XMFLOAT4) +

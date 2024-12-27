@@ -215,7 +215,7 @@ ModelManifest.xml
 wiShaderdump.h
 
 # vscode
-.vscode/settings.json
+#.vscode/settings.json
 
 # PlayStation
 *.tlog

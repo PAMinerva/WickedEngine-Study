@@ -787,8 +787,9 @@ bool LoadShader(
 		input.format = device->GetShaderFormat();
 		input.stage = stage;
 		input.minshadermodel = minshadermodel;
-		input.defines = permutation_defines;
+		input.defines = permutation_defines; // add defines
 
+		// Add the shader source directory which also include header files
 		std::string sourcedir = SHADERSOURCEPATH;
 		wi::helper::MakePathAbsolute(sourcedir);
 		input.include_directories.push_back(sourcedir);
@@ -800,6 +801,9 @@ bool LoadShader(
 
 		if (output.IsValid())
 		{
+			// Save cso file and meta data files on disk.
+			// In this case, the meta data only includes the relative path (with respect to the meta data file) of the shader dependecies:
+			// the hlsli header files used by the shader.
 			wi::shadercompiler::SaveShaderAndMetadata(shaderbinaryfilename, output);
 
 			if (!output.error_message.empty())
@@ -807,6 +811,8 @@ bool LoadShader(
 				wi::backlog::post(output.error_message, wi::backlog::LogLevel::Warning);
 			}
 			wi::backlog::post("shader compiled: " + shaderbinaryfilename);
+
+			// Save the shader blob and create the root signature, then retun true if succeess
 			return device->CreateShader(stage, output.shaderdata, output.shadersize, &shader);
 		}
 		else
@@ -1185,6 +1191,9 @@ void LoadShaders()
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) { LoadShader(ShaderStage::DS, shaders[DSTYPE_OBJECT_PREPASS], "objectDS_prepass.cso"); });
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) { LoadShader(ShaderStage::DS, shaders[DSTYPE_OBJECT_SIMPLE], "objectDS_simple.cso"); });
 
+	// wi::jobsystem::Dispatch allows to execute groups of jobs in parallel.
+	// In this case, we only use Dispatch to compile the same pixel shader code with different defines.
+	// Note that we use a different context here.
 	wi::jobsystem::Dispatch(objectps_ctx, MaterialComponent::SHADERTYPE_COUNT, 1, [](wi::jobsystem::JobArgs args) {
 
 		LoadShader(
@@ -1197,6 +1206,7 @@ void LoadShaders()
 
 	});
 
+	// This is similar to the previous Dispatch, but this time we also add the "TRANSPARENT" define.
 	wi::jobsystem::Dispatch(objectps_ctx, MaterialComponent::SHADERTYPE_COUNT, 1, [](wi::jobsystem::JobArgs args) {
 
 		auto defines = MaterialComponent::shaderTypeDefines[args.jobIndex];
@@ -1211,6 +1221,8 @@ void LoadShaders()
 
 	});
 
+	// Wait for all jobs queued above, associated with ctx, to be picked up by any thread and finished.
+	// This is necessary, as explained in the comment describing the desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE] instruction below.
 	wi::jobsystem::Wait(ctx);
 
 	if (device->CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
@@ -1227,7 +1239,7 @@ void LoadShaders()
 			PipelineStateDesc desc;
 			desc.as = &shaders[ASTYPE_OBJECT];
 			desc.ms = &shaders[MSTYPE_OBJECT_SIMPLE];
-			desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE]; // this is created in a different thread, so wait for the ctx before getting here
+			desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE]; // this is created in a different thread, so wait for the ctx before getting here (see above)
 			desc.rs = &rasterizers[RSTYPE_WIRE];
 			desc.bs = &blendStates[BSTYPE_OPAQUE];
 			desc.dss = &depthStencils[DSSTYPE_DEFAULT];
@@ -1285,6 +1297,7 @@ void LoadShaders()
 
 		});
 
+	// Create various PSOs from all shaders that were loaded above
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) {
 		PipelineStateDesc desc;
 		desc.vs = &shaders[VSTYPE_OBJECT_SIMPLE];
@@ -1870,6 +1883,7 @@ void LoadShaders()
 		RegisterCustomShader(customShader);
 	}
 
+	// Wait for all jobs queued above, associated with ctx, to be picked up by any thread and finished.
 	wi::jobsystem::Wait(ctx);
 
 
@@ -1879,6 +1893,8 @@ void LoadShaders()
 	//	The RenderMeshes that uses these pipeline states will be checking the PipelineState.IsValid() and skip draws if the pipeline is not yet valid
 	wi::jobsystem::Wait(object_pso_job_ctx);
 	object_pso_job_ctx.priority = wi::jobsystem::Priority::Low;
+	// Create more PSOs based on different pipeline states, render passes and shader types.
+	// We will submit this as jobs so that we won't have to wait for them to finish before we actually need them.
 	for (uint32_t renderPass = 0; renderPass < RENDERPASS_COUNT; ++renderPass)
 	{
 		for (uint32_t shaderType = 0; shaderType < MaterialComponent::SHADERTYPE_COUNT; ++shaderType)
@@ -2876,11 +2892,11 @@ void Initialize()
 {
 	wi::Timer timer;
 
-	SetUpStates();
-	LoadBuffers();
+	SetUpStates(); // Create various states such as sampler states, blend states, rasterizer states, etc.
+	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
-	LoadShaders();
+	LoadShaders(); // Compile and save various shaders and create different PSOs for different rendering purposes
 
 	wilog("wi::renderer Initialized (%d ms)", (int)std::round(timer.elapsed()));
 	initialized.store(true);
@@ -3188,6 +3204,7 @@ void RenderMeshes(
 		(renderPass == RENDERPASS_PREPASS || renderPass == RENDERPASS_PREPASS_DEPTHONLY || renderPass == RENDERPASS_MAIN || renderPass == RENDERPASS_SHADOW || renderPass == RENDERPASS_RAINBLOCKER);
 
 	// Pre-allocate space for all the instances in GPU-buffer:
+	// Return the index of the SRV in the bindless heap
 	const size_t alloc_size = renderQueue.size() * camera_count * sizeof(ShaderMeshInstancePointer);
 	const GraphicsDevice::GPUAllocation instances = device->AllocateGPU(alloc_size, cmd);
 	const int instanceBufferDescriptorIndex = device->GetDescriptorIndex(&instances.buffer, SubresourceType::SRV);
@@ -3370,6 +3387,10 @@ void RenderMeshes(
 			const IndexBufferFormat ibformat = provokingIBRequired ? mesh.GetProvokingIndexFormat() : mesh.GetIndexFormat();
 			const void* ibinternal = ib->internal_state.get();
 
+			// Bind the portion of the general buffer containing the index buffer
+			// Note that the other buffers included in the general buffer will be accessed through the SRVs in the bindless portion
+			// of the shader-visible heap; see wi::Scene::MeshComponent::CreateRenderData, especially where CreateSubresource
+			// is invoked multiple times to create the various subresources and SRVs to access them.
 			if (!meshShaderPSO && (prev_ib_internal != ibinternal || prev_ibformat != ibformat))
 			{
 				prev_ib_internal = ibinternal;
@@ -5110,6 +5131,7 @@ void UpdateRenderData(
 
 	PushBarrier(GPUBarrier::Buffer(&vis.scene->meshletBuffer, ResourceState::SHADER_RESOURCE, ResourceState::UNORDERED_ACCESS));
 
+	// Barries for frame cb, instance buffer, geometry buffer and material buffer (see Scene::Update in wiScene.cpp)
 	PushBarrier(GPUBarrier::Buffer(&buffers[BUFFERTYPE_FRAMECB], ResourceState::CONSTANT_BUFFER, ResourceState::COPY_DST));
 	if (vis.scene->instanceBuffer.IsValid())
 	{
@@ -5207,6 +5229,10 @@ void UpdateRenderData(
 	wi::profiler::EndRange(prof_updatebuffer_cpu);
 	wi::profiler::EndRange(prof_updatebuffer_gpu);
 
+	// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty.
+	// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them;
+	// however, in this case, the slot is different from the one used by wi::renderer::BindCameraCB, called by wi::RenderPath3D::Render,
+	// called by Application::Render, called by Application::Run, called by main)
 	BindCommonResources(cmd);
 
 	{
@@ -7236,6 +7262,8 @@ void DrawScene(
 	device->EventBegin("DrawScene", cmd);
 	device->BindShadingRate(ShadingRate::RATE_1X1, cmd);
 
+	// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty.
+	// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them;
 	BindCommonResources(cmd);
 
 	if (ocean && !skip_planar_reflection_objects && vis.scene->weather.IsOceanEnabled() && vis.scene->ocean.IsValid())

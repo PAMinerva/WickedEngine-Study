@@ -313,7 +313,7 @@ namespace wi::graphics
 			inline bool IsValid() const { return data != nullptr && buffer.IsValid(); }
 		};
 
-		// Allocates temporary memory that the CPU can write and GPU can read. 
+		// Allocates temporary memory that the CPU can write and GPU can read.
 		//	It is only alive for one frame and automatically invalidated after that.
 		GPUAllocation AllocateGPU(uint64_t dataSize, CommandList cmd)
 		{
@@ -323,6 +323,7 @@ namespace wi::graphics
 
 			GPULinearAllocator& allocator = GetFrameAllocator(cmd);
 
+			// note that allocator store size and offset of the last invocation (see the end of the function)
 			const uint64_t free_space = allocator.buffer.desc.size - allocator.offset;
 			if (dataSize > free_space)
 			{
@@ -335,6 +336,7 @@ namespace wi::graphics
 					desc.misc_flags |= ResourceMiscFlag::RAY_TRACING;
 				}
 				allocator.alignment = GetMinOffsetAlignment(&desc);
+				// allocate enough space to possibly create other buffers used in the current frame
 				desc.size = align((allocator.buffer.desc.size + dataSize) * 2, allocator.alignment);
 				CreateBuffer(&desc, nullptr, &allocator.buffer);
 				SetName(&allocator.buffer, "frame_allocator");
@@ -345,7 +347,7 @@ namespace wi::graphics
 			allocation.offset = allocator.offset;
 			allocation.data = (void*)((size_t)allocator.buffer.mapped_data + allocator.offset);
 
-			allocator.offset += align(dataSize, allocator.alignment);
+			allocator.offset += align(dataSize, allocator.alignment); // move offset to preserve previous buffers in the same allocation
 
 			assert(allocation.IsValid());
 			return allocation;

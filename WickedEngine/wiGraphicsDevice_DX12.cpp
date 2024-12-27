@@ -46,6 +46,8 @@ namespace dx12_internal
 
 #ifdef PLATFORM_WINDOWS_DESKTOP
 	// On Windows PC we load DLLs manually because graphics device can be chosen at runtime:
+	// CreateDXGIFactory2 and DXGIGetDebugInterface1 declared in dxgi1_3.h, which is included in dxgi1_4.h,
+	// which is included in dxgi1_5.h, which is included in dxgi1_6.h, which is included in wiGraphicsDevice_DX12.h
 	using PFN_CREATE_DXGI_FACTORY_2 = decltype(&CreateDXGIFactory2);
 	static PFN_CREATE_DXGI_FACTORY_2 CreateDXGIFactory2 = nullptr;
 #ifdef _DEBUG
@@ -1186,7 +1188,7 @@ namespace dx12_internal
 
 			// bindless allocation:
 			allocationhandler->destroylocker.lock();
-			if (!allocationhandler->free_bindless_res.empty())
+			if (!allocationhandler->free_bindless_res.empty()) // see GraphicsDevice_DX12 constructor below
 			{
 				index = allocationhandler->free_bindless_res.back();
 				allocationhandler->free_bindless_res.pop_back();
@@ -1417,6 +1419,9 @@ namespace dx12_internal
 			if (heap) allocationhandler->destroyer_queryheaps.push_back(std::make_pair(heap, framecount));
 		}
 	};
+
+	// PipelineState_DX12 used to store info both for a particolar shader (shader bytecode, input layout, root signature, etc.)
+	// and for the whole pipeline (pipeline state).
 	struct PipelineState_DX12
 	{
 		wi::allocator::shared_ptr<GraphicsDevice_DX12::AllocationHandler> allocationhandler;
@@ -1431,6 +1436,16 @@ namespace dx12_internal
 		wi::allocator::shared_ptr<void> rootsig_desc_lifetime_extender;
 		RootSignatureOptimizer rootsig_optimizer;
 
+		// A pipeline state stream is a flexible and modular way to define the state of the graphics pipeline.
+		// Instead of defining a whole, complex structure with all the state information, a pipeline state stream allows
+		// you to specify only the parts of the state that are necessary for your application, making the code more modular
+		// and easier to manage.
+		// Each member of the PSO_STREAM struct represents a specific part of the pipeline state, such as the vertex shader,
+		// pixel shader, rasterizer state, blend state, etc. These members are initialized with the appropriate state information,
+		// which is later used to create the pipeline state object (PSO).
+		// The PSO_STREAM struct is divided into two sub-structs: PSO_STREAM1 and PSO_STREAM2. PSO_STREAM1 contains the
+		// traditional graphics pipeline state elements, while PSO_STREAM2 contains elements specific to mesh shaders and
+		// amplification shaders, which are part of the newer pipeline state features.
 		struct PSO_STREAM
 		{
 			struct PSO_STREAM1
@@ -1708,7 +1723,7 @@ std::mutex queue_locker;
 	void GraphicsDevice_DX12::DescriptorBinder::flush(bool graphics, CommandList cmd)
 	{
 		uint64_t& dirty = graphics ? dirty_graphics : dirty_compute;
-		if (dirty == 0ull)
+		if (dirty == 0ull) // see the Bind* functions below (to this purpose, find dirty_graphics), if nothing is bound, then there are no bits set in the dirty mask
 			return;
 
 		CommandList_DX12& commandlist = device->GetCommandList(cmd);
@@ -1716,11 +1731,13 @@ std::mutex queue_locker;
 		auto pso_internal = graphics ? to_internal(commandlist.active_pso) : to_internal(commandlist.active_cs);
 		const RootSignatureOptimizer& optimizer = pso_internal->rootsig_optimizer;
 
+		// _BitScanReverse64 search the mask data from most significant bit (MSB) to least significant bit (LSB) for a set bit (1).
+		// For example, if dirty = 1100b, then index = 3 because the MSB set to 1 is the 4th from the right, which has index 3.
 		DWORD index;
 		while (_BitScanReverse64(&index, dirty)) // This will make sure that only the dirty root params are iterated, bit-by-bit
 		{
-			const UINT root_parameter_index = (UINT)index;
-			dirty ^= 1ull << root_parameter_index; // remove dirty bit of this root parameter
+			const UINT root_parameter_index = (UINT)index; // retrieve the index of the root parameter that is marked as dirty
+			dirty ^= 1ull << root_parameter_index; // remove dirty bit for this root parameter: bitwise XOR (a^b=1 if a!=b, a^b=0 if a==b, with a and b bits)
 			const D3D12_ROOT_PARAMETER1& param = pso_internal->rootsig_desc->Desc_1_1.pParameters[root_parameter_index];
 			const RootSignatureOptimizer::RootParameterStatistics& stats = optimizer.root_stats[root_parameter_index];
 
@@ -1735,8 +1752,10 @@ std::mutex queue_locker;
 				if (stats.descriptorCopyCount == 1 && param.DescriptorTable.pDescriptorRanges[0].RangeType != D3D12_DESCRIPTOR_RANGE_TYPE_CBV)
 				{
 					// This is a special case of 1 descriptor per table. This doesn't need copying, but we can just reference single descriptors by their index
-					//	because descriptor index was created already in shader visible descriptor heap for bindless access.
-					//	We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
+					//	because descriptor index was created already in shader visible descriptor heap for bindless access (see, for example,
+					//  wii:Scene::MeshComponent::CreateRenderData, especially where CreateSubresource is called, which in turn invoke SingleDescriptor::init,
+					//  that copy the descriptor in the bindless portion of the shader-visible heap).
+					// We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
 					const D3D12_DESCRIPTOR_RANGE1& range = param.DescriptorTable.pDescriptorRanges[0];
 					switch (range.RangeType)
 					{
@@ -1792,6 +1811,10 @@ std::mutex queue_locker;
 					const uint32_t descriptorSize = stats.is_sampler ? device->sampler_descriptor_size : device->resource_descriptor_size;
 					const uint32_t bindless_capacity = stats.is_sampler ? BINDLESS_SAMPLER_CAPACITY : BINDLESS_RESOURCE_CAPACITY;
 
+					//
+					// Skip the first 500k descriptors in the heap (dedicated to SingleDescriptors) to store the descriptors in each range
+					// included in the current descriptor table.
+					//
 					// Remarks:
 					//	This is allocating from the global shader visible descriptor heaps in a simple incrementing
 					//	lockless ring buffer fashion.
@@ -1821,6 +1844,11 @@ std::mutex queue_locker;
 
 					// Check that gpu offset doesn't intersect with our newly allocated range, if it does, we need to wait until gpu finishes with it:
 					//	First check is with the cached completed value to avoid API call into fence object
+					// See DescriptorHeapGPU::SignalGPU in the header file for more info.
+					// Usually, wrapped_offset should be greater than wrapped_gpu_offset (the end of the GPU range), since wrapped_offset is set CPU side
+					// while wrapped_gpu_offset GPU side. Otherwise, wrapped_offset is wrapped around to zero, and we need to wait until GPU finishes with
+					// the range intersecting with the newly allocated range.
+					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range is in the middle of the GPU one.
 					uint64_t wrapped_gpu_offset = heap.cached_completedValue % wrap_effective_size;
 					if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 					{
@@ -1829,6 +1857,8 @@ std::mutex queue_locker;
 						if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 						{
 							// Third step is actual wait until GPU updates fence so that requested descriptors are free:
+							// Indeed, the range of descriptors we are trying to allocate is available per draw (each draw can allocate its own range
+							// and after the draw is finished, the range is free to be used again), but we need to wait until the GPU finishes with it.
 							dx12_check(heap.fence->SetEventOnCompletion(heap.fenceValue, nullptr));
 						}
 					}
@@ -2056,8 +2086,8 @@ std::mutex queue_locker;
 		if (!commandlist.dirty_pso)
 			return;
 
-		const PipelineState* pso = commandlist.active_pso;
-		PipelineHash pipeline_hash = commandlist.prev_pipeline_hash;
+		const PipelineState* pso = commandlist.active_pso; // retrieve the active PipelineState
+		PipelineHash pipeline_hash = commandlist.prev_pipeline_hash; // retrieve the pipeline hash
 
 		auto internal_state = to_internal(pso);
 
@@ -2085,6 +2115,36 @@ std::mutex queue_locker;
 
 				auto pipeline_internal = to_internal(&just_in_time_pso);
 				pipeline = pipeline_internal->resource.Get();
+
+				// DXGI_FORMAT DSFormat = _ConvertFormat(commandlist.renderpass_info.ds_format);
+				// D3D12_RT_FORMAT_ARRAY formats = {};
+				// formats.NumRenderTargets = commandlist.renderpass_info.rt_count; // see RenderPassBegin below
+				// for (uint32_t i = 0; i < commandlist.renderpass_info.rt_count; ++i)
+				// {
+				// 	formats.RTFormats[i] = _ConvertFormat(commandlist.renderpass_info.rt_formats[i]);
+				// }
+				// DXGI_SAMPLE_DESC sampleDesc = {};
+				// sampleDesc.Count = commandlist.renderpass_info.sample_count;
+				// sampleDesc.Quality = 0;
+				//
+				// stream.stream1.DSFormat = DSFormat;
+				// stream.stream1.Formats = formats;
+				// stream.stream1.SampleDesc = sampleDesc;
+				//
+				// D3D12_PIPELINE_STATE_STREAM_DESC streamDesc = {};
+				// streamDesc.pPipelineStateSubobjectStream = &stream;
+				// streamDesc.SizeInBytes = sizeof(stream.stream1);
+				// if (CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
+				// {
+				// 	streamDesc.SizeInBytes += sizeof(stream.stream2);
+				// }
+				//
+				// ComPtr<ID3D12PipelineState> newpso; // create a new PSO from the stream
+				// dx12_check(device->CreatePipelineState(&streamDesc, PPV_ARGS(newpso)));
+				//
+				// // Save the PSO just created in the context of the command list to retrieve it later if needed
+				// commandlist.pipelines_worker.push_back(std::make_pair(pipeline_hash, newpso));
+				// pipeline = newpso.Get();
 			}
 		}
 		else
@@ -2094,9 +2154,11 @@ std::mutex queue_locker;
 		}
 		assert(pipeline != nullptr);
 
+		// Set the pipeline state object and reset the dirty flag
 		commandlist.GetGraphicsCommandList()->SetPipelineState(pipeline);
 		commandlist.dirty_pso = false;
 
+		// Set the primitive topology if uninitialized or changed
 		if (commandlist.prev_pt != internal_state->primitiveTopology)
 		{
 			commandlist.prev_pt = internal_state->primitiveTopology;
@@ -2110,7 +2172,7 @@ std::mutex queue_locker;
 		pso_validate(cmd);
 
 		CommandList_DX12& commandlist = GetCommandList(cmd);
-		commandlist.binder.flush(true, cmd);
+		commandlist.binder.flush(true, cmd); // set graphics root parameters with the appropriate arguments
 	}
 	void GraphicsDevice_DX12::predispatch(CommandList cmd)
 	{
@@ -2124,6 +2186,7 @@ std::mutex queue_locker;
 	{
 		wi::Timer timer;
 
+		// Raytracing related stuff
 		SHADER_IDENTIFIER_SIZE = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 		TOPLEVEL_ACCELERATION_STRUCTURE_INSTANCE_SIZE = sizeof(D3D12_RAYTRACING_INSTANCE_DESC);
 
@@ -2180,6 +2243,14 @@ std::mutex queue_locker;
 			wi::platform::Exit();
 		}
 
+		// Serialization is the process of converting a data structure into a format that can be easily stored or transmitted.
+		// In the context of DirectX 12, the root signature descriptor can be serialized into a binary blob.
+		// This is useful because it allows saving the root signature to a file or transmitting it over a network,
+		// and then reconstructing (deserializing) it when needed.
+		// Deserialization is the inverse process of serialization. It involves taking the serialized binary blob
+		// and reconstructing the original data structure.
+		// In DirectX 12, this means taking the binary blob of the root signature and reconstructing the root signature descriptor
+		// so that it can be used by the graphics device.
 		D3D12CreateVersionedRootSignatureDeserializer = (PFN_D3D12_CREATE_VERSIONED_ROOT_SIGNATURE_DESERIALIZER)wiGetProcAddress(dx12, "D3D12CreateVersionedRootSignatureDeserializer");
 		assert(D3D12CreateVersionedRootSignatureDeserializer != nullptr);
 		if (D3D12CreateVersionedRootSignatureDeserializer == nullptr)
@@ -2212,16 +2283,43 @@ std::mutex queue_locker;
 				}
 
 				// DRED
+				// Existing debugging aids like the Debug Layer, GPU-Based Validation and PIX help, but these do not catch all errors that potentially produce GPU faults.
+				// Device Removed Extended Data (DRED) is a feature that can help you identify GPU faults, which are a common source of device-removed errors.
+				// A device-removed error is simply the result of unrecoverable errors that occur in GPU operations.
+				// It happens when continuing the execution of the context is not safe.
+				// DRED extends the debugging toolset by provided additional data about the state of GPU workload execution at (or near) the time of the GPU error.
+				// DRED data includes automatic breadcrumbs (see below) and GPU Page Fault analysis.
+				// They can be broadly categorized into two types:
+				// - TDR (Timeout Detection and Recovery): caused when a GPU fails to respond within a certain amount of time
+				//   (e.g., when there is an unexpectedly long operation in the shader code; for example, an infinite loop), or when there is an incorrect
+				//   synchronization between wait and signal operations on a fence).
+				// - Fault: caused when, for example, there is a read or write operation in a non-resident page of memory, or when there
+				//   is an invalid access for a resource (e.g., read a buffer as texture), or as a conseguence of a corrupted command list,
+				//   or when accessing misaligned resources.
 				ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
 				if (SUCCEEDED(D3D12GetDebugInterface(PPV_ARGS(pDredSettings))))
 				{
 					// Turn on auto-breadcrumbs and page fault reporting.
+					// Breadcrumbs are markers that can be placed in the GPU command stream to track GPU progress before a Timeout Detection and Recovery (TDR)
+					// or a device removal.
+					// GPU Page faults occur when the GPU tries to references a deleted object, an evicted resource, an uninitialized or stale descriptor, or
+					// tries to index beyond the end of a root binding.
+					// SetAutoBreadcrumbsEnablement enables auto insertion of breadcrumbs after each "render op" (e.g. Draw, Dispatch, Copy, Resolve, etc…)
+					// SetPageFaultEnablement can be used to turn on GPU page fault reporting.
+					// SetBreadcrumbContextEnablement provides additional context around the breadcrumb.
 					pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 					pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 					pDredSettings->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 				}
 			}
 
+			// IDXGIInfoQueue provides a information-queue interface to store, retrieve, and filter debug messages for DXGI.
+			// The queue consists of a message queue, an optional storage filter stack, and a optional retrieval filter stack.
+			// IDXGIInfoQueue can only be used if the debug layer is turned on.
+			// SetBreakOnSeverity Sets a message severity level to break on when a message with that severity level passes through the storage filter.
+			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION specifies a corruption message.
+			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR specifies an error message.
+			// AddStorageFilterEntries adds storage filters to the top of the storage-filter stack. It is used to allow or deny messages in the message queue based on their ID.
 #if defined(_DEBUG)
 			ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
 			if (DXGIGetDebugInterface1 != nullptr && SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf()))))
@@ -2259,6 +2357,8 @@ std::mutex queue_locker;
 		}
 
 		// Determines whether tearing support is available for fullscreen borderless windows.
+		// This allows for presenting a frame immediately after the previous one, without waiting for the next vertical sync
+		// (usefull for variable refresh rate displays)
 		{
 			BOOL allowTearing = FALSE;
 
@@ -2288,8 +2388,13 @@ std::mutex queue_locker;
 		{
 			if (queryByPreference)
 			{
+				// EnumAdapterByGpuPreference enumerates graphics adapters based on a given GPU preference.
+				// The index parameter is an index into the list of adapters that meet the GPU preference criteria.
+				// The indices are in order of the preference specified in GpuPreference—for example, if DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE is specified,
+				// then the highest-performing adapter is at index 0, the second-highest is at index 1, and so on.
 				return dxgiFactory6->EnumAdapterByGpuPreference(index, preference == GPUPreference::Integrated ? DXGI_GPU_PREFERENCE_MINIMUM_POWER : DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(ppAdapter));
 			}
+			// EnumAdapters1 is similar to EnumAdapterByGpuPreference, but it doesn't take a GPU preference parameter.
 			return dxgiFactory->EnumAdapters1(index, ppAdapter);
 		};
 
@@ -2361,6 +2466,9 @@ std::mutex queue_locker;
 		if (validationMode != ValidationMode::Disabled)
 		{
 			// Configure debug device (if active).
+			// ID3D12InfoQueue provides a information-queue interface to store, retrieve, and filter debug messages for D3D.
+			// The queue consists of a message queue, an optional storage filter stack, and a optional retrieval filter stack.
+			// ID3D12InfoQueue can only be used if the debug layer is turned on.
 			ComPtr<ID3D12InfoQueue> d3dInfoQueue;
 			if (SUCCEEDED(device.As(&d3dInfoQueue)))
 			{
@@ -2404,6 +2512,13 @@ std::mutex queue_locker;
 		allocatorDesc.pAdapter = dxgiAdapter.Get();
 		//allocatorDesc.PreferredBlockSize = 256 * 1024 * 1024;
 		//allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_ALWAYS_COMMITTED;
+		// These flags are optional but recommended.
+		// ALLOCATOR_FLAG_MSAA_TEXTURES_ALWAYS_COMMITTED:
+		// If an MSAA texture requires a 4 MB alignment and another resource in
+		// the same heap only requires 64 KB alignment, the allocator may struggle to align
+		// the MSAA texture correctly without wasting significant space. By committing
+		// MSAA textures, they are allocated with their own dedicated heap, ensuring proper
+		// alignment and efficient memory use.
 		allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_DEFAULT_POOLS_NOT_ZEROED;
 		allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_MSAA_TEXTURES_ALWAYS_COMMITTED;
 		allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_DONT_PREFER_SMALL_BUFFERS_COMMITTED; // small committed buffers are a performance problem on windows 11
@@ -2526,6 +2641,8 @@ std::mutex queue_locker;
 			allocationhandler->free_bindless_res.reserve(BINDLESS_RESOURCE_CAPACITY);
 			for (int i = 0; i < BINDLESS_RESOURCE_CAPACITY; ++i)
 			{
+				// mark the first 500k descriptors as free by storing their indices
+				// (in reverse order so that we can pop_back starting from the first one with index 0)
 				allocationhandler->free_bindless_res.push_back(BINDLESS_RESOURCE_CAPACITY - i - 1);
 			}
 		}
@@ -2731,6 +2848,10 @@ std::mutex queue_locker;
 			D3D12_FORMAT_SUPPORT2 formatSupport2 = D3D12_FORMAT_SUPPORT2_NONE;
 
 			hr = features.FormatSupport(DXGI_FORMAT_R11G11B10_FLOAT, formatSupport1, formatSupport2);
+			// D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD indicates that the format supports unordered access view (UAV) loads
+			// from a UAV resource in a typed manner, meaning the data is interpreted according to the format's type (e.g., R11G11B10_FLOAT).
+			// This flag is useful for ensuring that a specific format can be used for UAV operations that involve reading data from a view
+			// that specifies that format.
 			if (SUCCEEDED(hr) && (formatSupport2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD) != 0)
 			{
 				capabilities |= GraphicsDeviceCapability::UAV_LOAD_FORMAT_R11G11B10_FLOAT;
@@ -2771,6 +2892,9 @@ std::mutex queue_locker;
 		}
 
 		// Fully typed casting: https://microsoft.github.io/DirectX-Specs/d3d/RelaxedCasting.html#casting-rules-for-rs2-drivers
+		// It's an alternative way to cast resources between different formats without creating the main resource with a TYPELESS
+		// format and then create the views with a typed format that is in the same format family as the main resource’s TYPELESS format.
+		// see https://wickedengine.net/2022/11/graphics-api-secrets-format-casting/
 		casting_fully_typed_formats = features.CastingFullyTypedFormatSupported();
 
 		resource_heap_tier = features.ResourceHeapTier();
@@ -2780,7 +2904,7 @@ std::mutex queue_locker;
 			capabilities |= GraphicsDeviceCapability::ALIASING_GENERIC;
 		}
 
-		if (features.CacheCoherentUMA())
+		if (features.CacheCoherentUMA()) // false for discrete GPUs
 		{
 			capabilities |= GraphicsDeviceCapability::CACHE_COHERENT_UMA;
 
@@ -2794,10 +2918,16 @@ std::mutex queue_locker;
 
 #ifdef PLATFORM_WINDOWS_DESKTOP
 		// Create fence to detect device removal
+		// A fence is a DX object with a value that can be used to synchronize the CPU and GPU.
+		// Indeed, you can access it both from the CPU and the GPU to set or check its value.
 		{
+			// When a fence is create using a device, the fence is monitored by the device.
 			dx12_check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(deviceRemovedFence.GetAddressOf())));
 			dx12_check(deviceRemovedFence->SetName(L"deviceRemovedFence"));
 
+			// A device removal will cause all devices' monitored fences to be signaled to UINT64_MAX,
+			// so you can create a callback for device removal using an event.
+			// see https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device5-removedevice
 			HANDLE deviceRemovedEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 			dx12_check(deviceRemovedFence->SetEventOnCompletion(UINT64_MAX, deviceRemovedEvent));
 
@@ -3378,14 +3508,15 @@ std::mutex queue_locker;
 			}
 			else
 			{
-				cmd = copyAllocator.allocate(desc->size);
-				mapped_data = cmd.uploadbuffer.mapped_data;
+				cmd = copyAllocator.allocate(desc->size);   // allocate a staging buffer or reuse existing one in freelist if available
+				mapped_data = cmd.uploadbuffer.mapped_data; // pointer to the staging buffer just allocated
 			}
 
-			init_callback(mapped_data);
+			init_callback(mapped_data); // copy vertex and index data to mapped memory
 
 			if (cmd.IsValid())
 			{
+				// Copy staging buffer to GPU buffer
 				cmd.commandList->CopyBufferRegion(
 					internal_state->resource.Get(),
 					0,
@@ -3549,6 +3680,13 @@ std::mutex queue_locker;
 			resourceState = D3D12_RESOURCE_STATE_COMMON;
 		}
 
+		// retrieve information about the memory layout of subresources within a resource.
+		// GetCopyableFootprints is useful to fill-in fields of D3D12 structs involved in copying subresource data.
+		// Specifically, GetCopyableFootprints provides :
+		// 	The memory layout of each subresource (via D3D12_PLACED_SUBRESOURCE_FOOTPRINT).
+		//	The number of rows in each subresource.
+		//	The size of each row in bytes.
+		//	The total size in bytes required for the copy operation.
 		internal_state->total_size = 0;
 		internal_state->footprints.resize(GetTextureSubresourceCount(texture->desc));
 		internal_state->rowSizesInBytes.resize(internal_state->footprints.size());
@@ -3784,6 +3922,7 @@ std::mutex queue_locker;
 				void* mapped_data = nullptr;
 				if (texture->mapped_data == nullptr)
 				{
+					// Create a staging buffer in the internal state of cmd.uploadbuffer and map it to cmd.uploadbuffer.mapped_data
 					cmd = copyAllocator.allocate(internal_state->total_size);
 					mapped_data = cmd.uploadbuffer.mapped_data;
 				}
@@ -3798,12 +3937,16 @@ std::mutex queue_locker;
 
 					if (internal_state->rowSizesInBytes[i] > (SIZE_T)-1)
 						continue;
+
+					// Copy the texture (subresource) data to the intermediate upload buffer stored in CopyCMD
 					D3D12_MEMCPY_DEST DestData = {};
 					DestData.pData = (void*)((UINT64)mapped_data + internal_state->footprints[i].Offset);
 					DestData.RowPitch = (SIZE_T)internal_state->footprints[i].Footprint.RowPitch;
 					DestData.SlicePitch = (SIZE_T)internal_state->footprints[i].Footprint.RowPitch * (SIZE_T)internal_state->numRows[i];
 					MemcpySubresource(&DestData, &data, (SIZE_T)internal_state->rowSizesInBytes[i], internal_state->numRows[i], internal_state->footprints[i].Footprint.Depth);
 
+					// Register a copy command in the command list to copy, subresource by subresource, the intermediate upload buffer in CopyCMD
+					// storing the texture data to the texture internal state, which represents the actual texture resource on the GPU.
 					if (cmd.IsValid())
 					{
 						CD3DX12_TEXTURE_COPY_LOCATION Dst(internal_state->resource.Get(), UINT(i));
@@ -3819,6 +3962,7 @@ std::mutex queue_locker;
 					}
 				}
 
+				// Submit the copy command.
 				if (cmd.IsValid())
 				{
 					copyAllocator.submit(cmd);
@@ -3860,6 +4004,8 @@ std::mutex queue_locker;
 
 		HRESULT hr = dx12_check((internal_state->shadercode.empty() ? E_FAIL : S_OK));
 
+		// Create a root signature from the blob of the compiled shader, which include the
+		// serialized root signature since the root signature is defined in the shader code.
 		hr = dx12_check(D3D12CreateVersionedRootSignatureDeserializer(
 			internal_state->shadercode.data(),
 			internal_state->shadercode.size(),
@@ -3980,6 +4126,8 @@ std::mutex queue_locker;
 
 		return SUCCEEDED(hr);
 	}
+
+	// If renderpass_info is nullptr, then it will simply store the pipeline state data in the internal state for later use in creating the related PSO
 	bool GraphicsDevice_DX12::CreatePipelineState(const PipelineStateDesc* desc, PipelineState* pso, const RenderPassInfo* renderpass_info) const
 	{
 		auto internal_state = wi::allocator::make_shared<PipelineState_DX12>();
@@ -4081,7 +4229,7 @@ std::mutex queue_locker;
 
 		assert(internal_state->rootSignature != nullptr);
 		assert(internal_state->rootsig_desc != nullptr);
-		internal_state->rootsig_optimizer.init(*internal_state->rootsig_desc);
+		internal_state->rootsig_optimizer.init(*internal_state->rootsig_desc); // associate shader registers with roor parameter indices
 
 		CD3DX12_RASTERIZER_DESC rs = {};
 		rs.FillMode = _ConvertFillMode(rs_desc.fill_mode);
@@ -4984,21 +5132,28 @@ std::mutex queue_locker;
 				uint32_t stride = GetFormatStride(format);
 				srv_desc.Format = _ConvertFormat(format);
 				srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-				srv_desc.Buffer.FirstElement = UINT(offset / stride);
+				srv_desc.Buffer.FirstElement = UINT(offset / stride); // Treated as if it were an index buffer only, we need to skip the first fake indices to get the actual first one
 				srv_desc.Buffer.NumElements = UINT(std::min(size, desc.size - offset) / stride);
 			}
 
+			// Create a heap and a descriptor in it for the resource.
+			// If bindless is available, the descriptor is also copied to the global shader visible heap.
+			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
+			// and the descriptor index in the global shader visible heap if bindless is used.
 			SingleDescriptor descriptor;
 			descriptor.init(this, srv_desc, internal_state->resource.Get());
 			descriptor.buffer_offset = offset;
 
 			if (!internal_state->srv.IsValid())
 			{
-				internal_state->srv = descriptor;
+				internal_state->srv = descriptor; // for bindless, this will also contain the descriptor index in the global shader visible heap
 				return -1;
 			}
+			// If internal_state->srv is already valid (that is, if the resource already has a SingleDescriptor associated with it),
+			// then we store the current SingleDescriptor in the subresources_srv array.
+			// This is necessary because ???
 			internal_state->subresources_srv.push_back(descriptor);
-			return int(internal_state->subresources_srv.size() - 1);
+			return int(internal_state->subresources_srv.size() - 1); // return the index of the SingleDescriptor in the subresources_srv array
 		}
 		break;
 		case SubresourceType::UAV:
@@ -5173,7 +5328,7 @@ std::mutex queue_locker;
 			commandlists.push_back(cmd_allocator.allocate());
 		}
 		CommandList cmd;
-		cmd.internal_state = commandlists[cmd_current];
+		cmd.internal_state = commandlists[cmd_current]; // store the command list context to be accessible later outside of this function
 		cmd_locker.unlock();
 
 		CommandList_DX12& commandlist = GetCommandList(cmd);
@@ -5184,7 +5339,7 @@ std::mutex queue_locker;
 		if (commandlist.GetCommandList() == nullptr)
 		{
 			// need to create one more command list:
-
+			// one command allocator per frame
 			for (uint32_t buffer = 0; buffer < BUFFERCOUNT; ++buffer)
 			{
 				dx12_check(device->CreateCommandAllocator(queues[queue].desc.Type, PPV_ARGS(commandlist.commandAllocators[buffer][queue])));
@@ -5221,13 +5376,14 @@ std::mutex queue_locker;
 #else
 				hr = dx12_check(device->CreateCommandList1(0, queues[queue].desc.Type, D3D12_COMMAND_LIST_FLAG_NONE, PPV_ARGS(graphicsCommandList)));
 #endif // PLATFORM_XBOX
+				// one command list per queue type is enough for all frames since memory where commands are recorded is managed by command allocators
 				commandlist.commandLists[queue] = graphicsCommandList;
 			}
 
 			std::wstring ws = L"cmd" + std::to_wstring(commandlist.id);
 			commandlist.GetCommandList()->SetName(ws.c_str());
 
-			commandlist.binder.init(this);
+			commandlist.binder.init(this); // only save the device pointer internally to the binder object
 		}
 
 		// Start the command list in a default state:
@@ -5244,6 +5400,7 @@ std::mutex queue_locker;
 
 		if (queue == QUEUE_GRAPHICS || queue == QUEUE_COMPUTE)
 		{
+			// Set the descriptor heaps bound to the command list
 			ID3D12DescriptorHeap* heaps[] = {
 				descriptorheap_res.heap_GPU.Get(),
 				descriptorheap_sam.heap_GPU.Get()
@@ -5256,6 +5413,7 @@ std::mutex queue_locker;
 			D3D12_RECT pRects[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX + 1];
 			for (uint32_t i = 0; i < arraysize(pRects); ++i)
 			{
+				// Set the default scissor rectangle large enough so that no pixel is discarded
 				pRects[i].left = 0;
 				pRects[i].right = 16384;
 				pRects[i].top = 0;
@@ -5405,6 +5563,8 @@ std::mutex queue_locker;
 			}
 		}
 
+		// Descriptor heaps' progress is recorded by the GPU
+		// See DescriptorBinder::flush function for more details
 		descriptorheap_res.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 		descriptorheap_sam.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 
@@ -5695,7 +5855,7 @@ std::mutex queue_locker;
 			{
 				dx12_check(fence->SetEventOnCompletion(1, nullptr));
 			}
-			fence->Signal(0);
+			fence->Signal(0); // reset fence to 0
 		}
 	}
 
@@ -5874,12 +6034,13 @@ std::mutex queue_locker;
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const SwapChain* swapchain, CommandList cmd)
 	{
-		CommandList_DX12& commandlist = GetCommandList(cmd);
+		CommandList_DX12& commandlist = GetCommandList(cmd); // retrieve CommandList_DX12 from CommandList internal state
 		commandlist.renderpass_barriers_begin.clear();
 		commandlist.renderpass_barriers_end.clear();
 		commandlist.swapchains.push_back(swapchain);
-		auto internal_state = to_internal(swapchain);
+		auto internal_state = to_internal(swapchain);        // retrieve SwapChain_DX12 from SwapChain internal state
 
+		// Register a barrier to transition the current back buffer to a render target
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		barrier.Transition.pResource = internal_state->textures[internal_state->GetBufferIndex()]->resource.Get();
@@ -5889,6 +6050,8 @@ std::mutex queue_locker;
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		commandlist.GetGraphicsCommandList()->ResourceBarrier(1, &barrier);
 
+		// Store a barrier in the renderpass_barriers_end array to transition the current back buffer back to present after rendering
+		// This will be registered in the command list in the RenderPassEnd function
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		commandlist.renderpass_barriers_end.push_back(barrier);
@@ -5907,6 +6070,7 @@ std::mutex queue_locker;
 			nullptr
 		);
 #else
+		// Retrieve the render target for the current back buffer and set the clear color
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC RTV = {};
 		RTV.cpuDescriptor = internal_state->textures[internal_state->GetBufferIndex()]->rtv.handle;
 		RTV.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -5915,9 +6079,18 @@ std::mutex queue_locker;
 		RTV.BeginningAccess.Clear.ClearValue.Color[2] = swapchain->desc.clear_color[2];
 		RTV.BeginningAccess.Clear.ClearValue.Color[3] = swapchain->desc.clear_color[3];
 		RTV.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+
+		// Marks the beginning of a render pass by binding a set of output resources for the duration of the render pass:
+		//  - One or more RTVs (render target views), as well as their beginning and ending access characteristics (including the clear values).
+		//  - An optional depth/stencil buffer view (DSV), as well as its beginning and ending access characteristics (including the clear value).
+		//  - The last argument is a flag that specifies the nature/requirements of the render pass. For example, whether it is a suspending or a
+		//    resuming render pass, or whether it wants to write to unordered access view(s).
+		//    D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES indicates that writes to unordered access view(s) should be allowed during the render pass.
 		commandlist.GetGraphicsCommandListLatest()->BeginRenderPass(1, &RTV, nullptr, D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES);
 #endif // DISABLE_RENDERPASS
 
+		// Only retrieve the swapchain format and save it in the command list for later use (see BindPipelineState below)
+		// Set rt_count to 1 because, usually, there is only one render target (the back buffer)
 		commandlist.renderpass_info = RenderPassInfo::from(swapchain->desc);
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const RenderPassImage* images, uint32_t image_count, CommandList cmd, RenderPassFlags flags)
@@ -6533,6 +6706,7 @@ std::mutex queue_locker;
 				const RootSignatureOptimizer& optimizer = *(RootSignatureOptimizer*)binder.optimizer_graphics;
 				if (optimizer.CBV[slot] != RootSignatureOptimizer::INVALID_ROOT_PARAMETER)
 				{
+					// Mark the root parameter as dirty
 					binder.dirty_graphics |= 1ull << optimizer.CBV[slot];
 				}
 			}
@@ -6640,7 +6814,7 @@ std::mutex queue_locker;
 			commandlist.prev_pipeline_hash = {};
 			commandlist.dirty_pso = false;
 		}
-		else
+		else // if the pso has not been created yet, we set it as dirty and associate an hash to it in the command list
 		{
 			PipelineHash pipeline_hash;
 			pipeline_hash.pso = pso;
@@ -6654,13 +6828,14 @@ std::mutex queue_locker;
 			commandlist.dirty_pso = true;
 		}
 
+		// retrieve the root signature from the PSO and bind it if it differs from the currently bound one
 		if (commandlist.active_rootsig_graphics != internal_state->rootSignature.Get())
 		{
 			commandlist.active_rootsig_graphics = internal_state->rootSignature.Get();
 			commandlist.GetGraphicsCommandList()->SetGraphicsRootSignature(internal_state->rootSignature.Get());
 
 			auto& binder = commandlist.binder;
-			binder.optimizer_graphics = &internal_state->rootsig_optimizer;
+			binder.optimizer_graphics = &internal_state->rootsig_optimizer; // rootsig_optimizer maps shader registers with root parameters
 			binder.dirty_graphics = internal_state->rootsig_optimizer.root_mask; // invalidates all root bindings
 		}
 

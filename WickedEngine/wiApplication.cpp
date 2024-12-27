@@ -65,7 +65,7 @@ namespace wi
 	{
 		if (component != nullptr)
 		{
-			component->init(canvas);
+			component->init(canvas); // store canvas in RenderPath object
 		}
 
 		// Fade manager will activate on fadeout
@@ -136,6 +136,7 @@ namespace wi
 		if (!wi::initializer::IsInitializeFinished())
 		{
 			// Until engine is not loaded, present initialization screen...
+			// Among other things, this will set the global shader visible heap bounds to the command list
 			CommandList cmd = graphicsDevice->BeginCommandList();
 			if (rendertargetPreHDR10.IsValid())
 			{
@@ -145,7 +146,7 @@ namespace wi
 			{
 				graphicsDevice->RenderPassBegin(&swapChain, cmd);
 			}
-			Viewport viewport;
+			Viewport viewport; // Set the viewport rectangle to the full backbuffer area
 			viewport.width = (float)swapChain.desc.width;
 			viewport.height = (float)swapChain.desc.height;
 			graphicsDevice->BindViewports(1, &viewport, cmd);
@@ -279,6 +280,9 @@ namespace wi
 		// avoid instability caused by large delta time
 		deltaTime = clamp(deltaTime, 0.0f, 0.5f);
 
+		// Updates the state of input devices such as the keyboard, mouse, and controllers.
+		// It stores the state of keyboard keys, mouse buttons, and controller buttons, pads and triggers.
+		// This is essential for capturing user interactions and responding to them appropriately within the application.
 		wi::input::Update(window, canvas);
 
 		// Wake up the events that need to be executed on the main thread, in thread safe manner:
@@ -321,6 +325,10 @@ namespace wi
 		wi::profiler::EndRange(range); // Fixed Update
 
 		// Variable-timed update:
+		// Create some buffers to store various data: object, instance and material information, etc.
+		// The object information include the SRV indices to the various buffers (included in the global vertex buffer).
+		// The instance information include the world matrix, the offset to the vertex information in the global vertex buffer, etc.
+		// The material information include various material parameters.
 		Update(deltaTime);
 
 		Render();
@@ -429,7 +437,7 @@ namespace wi
 
 		if (activePath != nullptr)
 		{
-			activePath->PreRender();
+			activePath->PreRender(); // update per frame data (scene, camera, etc) before rendering
 			activePath->Render();
 			activePath->PostRender();
 		}
@@ -600,7 +608,7 @@ namespace wi
 					infodisplay_str += "Pending pipeline creations by graphics driver: " + std::to_string(pipeline_creation) + ". Some rendering will be skipped.\n";
 				}
 			}
-			
+
 			if (infoDisplay.mouse_info)
 			{
 				infodisplay_str += "Mouse = (" + std::to_string(wi::input::GetPointer().x) + ", " + std::to_string(wi::input::GetPointer().y) + ") ";
@@ -618,7 +626,7 @@ namespace wi
 				}
 				infodisplay_str += "\n";
 			}
-			
+
 			wi::font::Params params = wi::font::Params(
 				4 + canvas.PhysicalToLogical((uint32_t)infoDisplay.rect.left),
 				4 + canvas.PhysicalToLogical((uint32_t)infoDisplay.rect.top),
@@ -826,7 +834,7 @@ namespace wi
 		}
 		else
 		{
-			canvas.init(window);
+			canvas.init(window); // specifies a DPI-aware drawing area from the window handle.
 		}
 
 		SwapChainDesc desc = swapChain.desc;
@@ -836,7 +844,7 @@ namespace wi
 			desc.buffer_count = 3;
 			if (graphicsDevice->CheckCapability(GraphicsDeviceCapability::R9G9B9E5_SHAREDEXP_RENDERABLE))
 			{
-				desc.format = Format::R9G9B9E5_SHAREDEXP;
+				desc.format = Format::R9G9B9E5_SHAREDEXP; // this format is not supported by all GPUs, but it is the best for HDR rendering
 			}
 			else
 			{

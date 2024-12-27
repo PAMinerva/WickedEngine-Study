@@ -335,6 +335,8 @@ namespace wi
 
 	void RenderPath3D::PreUpdate()
 	{
+		// If you follow Application::ActivatePath (tipically called in main), eventually RenderPath3D::Start will be invoked,
+		// which calls ResizeBuffers, which initializes camera.
 		camera_previous = *camera;
 		camera_reflection_previous = camera_reflection;
 	}
@@ -405,6 +407,7 @@ namespace wi
 
 		XMUINT2 internalResolution = GetInternalResolution();
 
+		// update per frame data (scene, camera, etc)
 		wi::renderer::UpdatePerFrameData(
 			*scene,
 			visibility_main,
@@ -871,14 +874,21 @@ namespace wi
 		wi::jobsystem::Execute(ctx, [this, cmd](wi::jobsystem::JobArgs args) {
 			GraphicsDevice* device = wi::graphics::GetDevice();
 
+			// Logically bind (on CPU side) the camera data to a binding slot and mark the related root parameter as dirty.
+			// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them)
 			wi::renderer::BindCameraCB(
 				*camera,
 				camera_previous,
 				camera_reflection,
 				cmd
 			);
+
+			// Store resource barriers that the renderer will require.
+			// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty (see BindCommonResources in UpdateRenderData).
+			// Copy geometry, instance and material buffeer from upload to gpu. 
 			wi::renderer::UpdateRenderData(visibility_main, frameCB, cmd);
 
+			// add other barriers that are not included in the renderer's UpdateRenderData function.
 			uint32_t num_barriers = 2;
 			GPUBarrier barriers[] = {
 				GPUBarrier::Image(&debugUAV, debugUAV.desc.layout, ResourceState::UNORDERED_ACCESS),

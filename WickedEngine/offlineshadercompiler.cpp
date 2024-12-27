@@ -402,7 +402,7 @@ int main(int argc, char* argv[])
 	*out << "\thlsl6_xs : \t\tCompile shaders to hlsl6 Xbox Series native (dx12) format (requires Xbox SDK)\n";
 	*out << "\tps5 : \t\t\tCompile shaders to PlayStation 5 native format (requires PlayStation 5 SDK)\n";
 	*out << "\trebuild : \t\tAll shaders will be rebuilt, regardless if they are outdated or not\n";
-	*out << "\tdisable_optimization : \tShaders will be compiled without optimizations\n";
+	*out << "\tdisable_optimization : \tShaders will be compiled without optimizations and including debug info\n";
 	*out << "\tstrip_reflection : \tReflection will be stripped from shader binary to reduce file size\n";
 	*out << "\tshaderdump : \t\tShaders will be saved to wiShaderDump.h C++ header file (can be combined with \"rebuild\")\n";
 	*out << "\tdebuginfo : \t\tKeep symbol data for shader debugging\n";

@@ -11,10 +11,15 @@ cmake_minimum_required(VERSION 3.19)
 project(FAudio C)
 
 # Options
+# Definisce un'opzione per specificare se costruire FAudio come libreria condivisa (shared) o statica. In questo caso è OFF di default, 
+# quindi viene creata una libreria statica.
+# L'utente può cambiarla passando -DBUILD_SHARED_LIBS=ON al comando cmake.
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
 option(BUILD_SDL3 "Build against SDL 3.0" OFF)
 
 # C99 Requirement
+# Specifica che il codice deve essere compilato usando lo standard C99, 
+# disabilitando estensioni proprietarie specifiche del compilatore
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_EXTENSIONS OFF)
 
@@ -25,6 +30,12 @@ SET(LIB_REVISION "01")
 SET(LIB_VERSION "${LIB_MAJOR_VERSION}.${LIB_MINOR_VERSION}.${LIB_REVISION}")
 
 # Build Type
+# Se l'utente non specifica un tipo di build (Debug, Release, etc.), imposta Release come default.
+# Se l'utente esegue cmake .. -DCMAKE_BUILD_TYPE=Release[Debug], allora viene usato il tipo di build specificato.
+# CACHE indica che la variabile deve essere memorizzata nella cache di CMake.
+# STRING specifica il tipo di dato della variabile nella cache, seguito dalla stringa che descrive la variabile,
+# che può essere così visualizzata in strumenti come cmake-gui.
+# FORCE forza l'aggiornamento della variabile nella cache, anche se è già stata impostata in precedenza.
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 	# By default, we use Release
 	message(STATUS "Setting build type to 'Release' as none was specified.")
@@ -33,6 +44,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 	)
 
 	# Set the possible values of build type for cmake-gui
+	# CACHE specifica che la proprietà deve essere impostata su una variabile nella cache di CMake.
+	# CMAKE_BUILD_TYPE: Nome della variabile di cui si sta impostando la proprietà.
+	# PROPERTY STRINGS: Specifica i valori possibili per la variabile.
 	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
 		STRINGS "Debug" "Release" "RelWithDebInfo"
 	)
@@ -87,6 +101,20 @@ install(FILES ${PUBLIC_HEADERS}
 		DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/WickedEngine/FAudio/")
 
 # FAudio folders as includes, for other targets to consume
+# src/stb.h sopra non significa niente. Il compilatore dev e sapere esattamente il percorso completo degli headers.
+# target_include_directories: Comando CMake utilizzato per specificare le directory di inclusione per un target.
+# PUBLIC: Indica che le directory di inclusione sono necessarie sia per compilare il target FAudio sia per i target che dipendono da FAudio.
+# $<BUILD_INTERFACE:...>: Generatore di espressioni CMake che specifica le directory di inclusione da utilizzare durante la fase di build.
+# $<INSTALL_INTERFACE:...>: Generatore di espressioni CMake che specifica le directory di inclusione da utilizzare durante la fase di installazione.
+# La directory di inclusione specificata durante la fase di installazione serve a garantire che i file di intestazione (header files) necessari 
+# per utilizzare la libreria siano disponibili per altri progetti che desiderano utilizzare la libreria installata.
+# Quando un progetto viene installato, i file di intestazione devono essere copiati in una posizione standard all'interno della 
+# directory di installazione. Questo permette ad altri progetti di trovare e includere questi file di intestazione quando compilano 
+# il loro codice che dipende dalla libreria installata.
+# In questo caso, il comando target_include_directories sotto specifica che durante la fase di installazione, 
+# i file di intestazione saranno disponibili nella directory `${CMAKE_INSTALL_INCLUDEDIR}/WickedEngine/FAudio`. 
+# Questo significa che quando la libreria `FAudio` viene installata, i file di intestazione saranno copiati in questa directory, rendendoli 
+# accessibili ad altri progetti che includono `FAudio`.
 target_include_directories(FAudio PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -94,6 +122,8 @@ target_include_directories(FAudio PUBLIC
 )
 
 # Soname
+# impostando la proprietà OUTPUT_NAME di un target puoi modificare il nome dell'output impostato in precedenza da add_library.
+# SOVERSION: Proprietà che specifica la versione sovraccaricata (soname) del target.
 set_target_properties(FAudio PROPERTIES
 	OUTPUT_NAME "FAudio"
 	VERSION ${LIB_VERSION}
