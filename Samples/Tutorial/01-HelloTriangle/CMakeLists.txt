@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 project(01-HelloTriangle)
 
-file(GLOB SOURCE_FILES CONFIGURE_DEPENDS *.cpp)
+file(GLOB SOURCE_FILES CONFIGURE_DEPENDS *.cpp *.h)
 list(FILTER SOURCE_FILES EXCLUDE REGEX ${CMAKE_CURRENT_SOURCE_DIR}/main_.*)
 list(APPEND SOURCE_FILES main_${PLATFORM}.cpp)
 
