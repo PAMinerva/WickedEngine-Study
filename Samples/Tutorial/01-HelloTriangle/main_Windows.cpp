@@ -22,6 +22,43 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+	/* Sets the current process to a specified dots per inch(dpi) awareness context to update desktop applications to handle
+	display scale factor (dots per inch, or DPI) changes dynamically, allowing their applications to be crisp on any display they're rendered on.
+	As display technology has progressed, display panel manufacturers have packed an increasing number of pixels into each unit of physical space on their panels.
+	This has resulted in the dots per inch(DPI) of modern display panels being much higher than they have historically been.
+	In the past, most displays had 96 pixels per linear inch of physical space(96 DPI); in 2017, displays with nearly 300 DPI or higher are readily available.
+	Most legacy desktop UI frameworks have built - in assumptions that the display DPI will not change during the lifetime of the process.
+	This assumption no longer holds true, with display DPIs commonly changing several times throughout an application process's lifetime.
+	Some common scenarios where the display scale factor/DPI changes are:
+
+	- Multiple - monitor setups where each display has a different scale factor and the application is moved from one display to another(such as a 4K and a 1080p display)
+	- Docking and undocking a high DPI laptop with a low - DPI external display(or vice versa)
+	- Connecting via Remote Desktop from a high DPI laptop/tablet to a low - DPI device (or vice versa)
+	- Making a display - scale - factor settings change while applications are running
+
+	In these scenarios, UWP applications redraw themselves for the new DPI automatically.
+	By default, and without additional developer work, desktop applications do not.
+	Desktop applications that don't do this extra work to respond to DPI changes may appear blurry or incorrectly-sized to the user.
+
+	Desktop applications must tell Windows if they support DPI scaling. By default, the system considers desktop applications DPI unaware and bitmap-stretches their windows.
+	By setting a DPI awareness mode, applications can explicitly tell Windows how they wish to handle DPI scaling.
+
+	It is recommended that desktop applications be updated to use per-monitor DPI awareness mode, allowing them to immediately render correctly whenever the DPI changes.
+	When an application reports to Windows that it wants to run in this mode, Windows will not bitmap stretch the application when the DPI changes, instead sending WM_DPICHANGED
+	to the application window. It is then the complete responsibility of the application to handle resizing itself for the new DPI.
+	Most UI frameworks used by desktop applications (Windows common controls (comctl32), Windows Forms, Windows Presentation Framework, etc.) do not support automatic DPI scaling,
+	requiring developers to resize and reposition the contents of their windows themselves.
+	There are two versions of Per-Monitor awareness that an application can register itself as: version 1 and version 2 (PMv2). Registering a process as running in PMv2 awareness mode results in:
+
+	- The application being notified when the DPI changes (both the top-level and child HWNDs)
+	- The application seeing the raw pixels of each display
+	- The application never being bitmap scaled by Windows
+	- Automatic non-client area (window caption, scroll bars, etc.) DPI scaling by Windows
+	- Win32 dialogs (from CreateDialog) automatically DPI scaled by Windows
+	- Theme-drawn bitmap assets in common controls (checkboxes, button backgrounds, etc.) being automatically rendered at the appropriate DPI scale factor
+
+	When running in Per-Monitor v2 Awareness mode, applications are notified when their DPI has changed.
+	If an application does not resize itself for the new DPI, the application UI will appear too small or too large (depending on the difference in the previous and new DPI values). */
     BOOL dpi_success = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     assert(dpi_success);
 
