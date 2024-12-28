@@ -2427,6 +2427,7 @@ using namespace vulkan_internal;
 			}
 			else if (strcmp(availableExtension.extensionName, VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME) == 0)
 			{
+				// This extension is required to use different color spaces (extended sRGB, HDR) in swapchain images other than the default ones (sRGB, RGB, etc.)
 				instanceExtensions.push_back(VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME);
 			}
 			else if (strcmp(availableExtension.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
