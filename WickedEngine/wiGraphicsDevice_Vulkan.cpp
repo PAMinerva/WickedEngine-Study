@@ -2521,6 +2521,7 @@ using namespace vulkan_internal;
 				wi::vector<VkExtensionProperties> available_deviceExtensions(extensionCount);
 				vulkan_check(vkEnumerateDeviceExtensionProperties(dev, nullptr, &extensionCount, available_deviceExtensions.data()));
 
+				// check if all required extensions are supported by a specific device
 				for (auto& x : required_deviceExtensions)
 				{
 					if (!checkExtensionSupport(x, available_deviceExtensions))
@@ -2556,7 +2557,7 @@ using namespace vulkan_internal;
 				properties2.pNext = &properties_1_1;
 				properties_1_1.pNext = &properties_1_2;
 				properties_1_2.pNext = &properties_1_3;
-				void** properties_chain = &properties_1_3.pNext;
+				void** properties_chain = &properties_1_3.pNext; // properties_chain stores the address of the pNext field of properties_1_3
 				sampler_minmax_properties = {};
 				acceleration_structure_properties = {};
 				raytracing_properties = {};
@@ -2566,12 +2567,12 @@ using namespace vulkan_internal;
 				conservativeRasterization = false;
 
 				sampler_minmax_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES;
-				*properties_chain = &sampler_minmax_properties;
-				properties_chain = &sampler_minmax_properties.pNext;
+				*properties_chain = &sampler_minmax_properties; // store the address of sampler_minmax_properties in properties_1_3.pNext
+				properties_chain = &sampler_minmax_properties.pNext; // now properties_chain stores the address of the pNext field of sampler_minmax_properties
 
 				depth_stencil_resolve_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_STENCIL_RESOLVE_PROPERTIES;
-				*properties_chain = &depth_stencil_resolve_properties;
-				properties_chain = &depth_stencil_resolve_properties.pNext;
+				*properties_chain = &depth_stencil_resolve_properties; // store the address of depth_stencil_resolve_properties in sampler_minmax_properties.pNext
+				properties_chain = &depth_stencil_resolve_properties.pNext; // now properties_chain stores the address of the pNext field of depth_stencil_resolve_properties
 
 				enabled_deviceExtensions = required_deviceExtensions;
 
@@ -2579,8 +2580,8 @@ using namespace vulkan_internal;
 				{
 					enabled_deviceExtensions.push_back(VK_EXT_IMAGE_VIEW_MIN_LOD_EXTENSION_NAME);
 					image_view_min_lod_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_MIN_LOD_FEATURES_EXT;
-					*features_chain = &image_view_min_lod_features;
-					features_chain = &image_view_min_lod_features.pNext;
+					*features_chain = &image_view_min_lod_features; // similar to the trick used above with properties_chain
+					features_chain = &image_view_min_lod_features.pNext; // etc.
 				}
 				if (checkExtensionSupport(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME, available_deviceExtensions))
 				{
@@ -2686,8 +2687,8 @@ using namespace vulkan_internal;
 				}
 #endif
 
-				*properties_chain = nullptr;
-				*features_chain = nullptr;
+				*properties_chain = nullptr; // break the property chain by setting the last pNext pointer to nullptr
+				*features_chain = nullptr;   // break the feature chain by setting the last pNext pointer to nullptr
 				vkGetPhysicalDeviceProperties2(dev, &properties2);
 
 			};
