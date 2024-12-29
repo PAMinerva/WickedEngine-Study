@@ -3110,11 +3110,13 @@ using namespace vulkan_internal;
 
 		// Core in 1.1
 		allocatorInfo.flags =
-			VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |
-			VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
+			VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT |  // Enables usage of VK_KHR_dedicated_allocation extension
+			VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;		     // Enables usage of VK_KHR_bind_memory2 extension
 
 		if (features_1_2.bufferDeviceAddress)
 		{
+			// Enables usage of "buffer device address" feature, which allows you to use function
+			// `vkGetBufferDeviceAddress*` to get raw GPU pointer to a buffer and pass it for usage inside a shader.
 			allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		}
 
