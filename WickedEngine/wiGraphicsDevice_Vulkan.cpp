@@ -2821,8 +2821,8 @@ using namespace vulkan_internal;
 			}
 
 			VkFormatProperties formatProperties = {};
-			vkGetPhysicalDeviceFormatProperties(physicalDevice, _ConvertFormat(Format::R11G11B10_FLOAT), &formatProperties);
-			if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, _ConvertFormat(Format::R11G11B10_FLOAT), &formatProperties); // specifies a three-component, 32-bit packed unsigned floating-point format
+			if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) // specifies if the format supports storage operations for an image
 			{
 				capabilities |= GraphicsDeviceCapability::UAV_LOAD_FORMAT_R11G11B10_FLOAT;
 			}
