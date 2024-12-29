@@ -2835,7 +2835,7 @@ using namespace vulkan_internal;
 				capabilities |= GraphicsDeviceCapability::SAMPLER_MINMAX;
 			}
 
-			if (features2.features.depthBounds == VK_TRUE)
+			if (features2.features.depthBounds == VK_TRUE) // specifies if the implementation supports depth bounds tests
 			{
 				capabilities |= GraphicsDeviceCapability::DEPTH_BOUNDS_TEST;
 			}
