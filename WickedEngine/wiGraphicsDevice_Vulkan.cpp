@@ -3226,6 +3226,9 @@ using namespace vulkan_internal;
 
 			// Transitions:
 			{
+				// Transition nullImage1D, nullImage2D and nullImage3D to general layout before any shader access
+				// Layout transitions needs to be performed in the middle of an image barrier to ensure that
+				// the new layout for a resource is available to the shaders that need to access the resource later on.
 				CopyAllocator::CopyCMD cmd = copyAllocator.allocate(0);
 				VkImageMemoryBarrier2 barrier = {};
 				barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
