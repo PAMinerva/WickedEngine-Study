@@ -245,7 +245,7 @@ namespace wi::graphics
 			// 5. **Submission**:
 			//    - The `submit` function is responsible for submitting the recorded command buffers for execution.
 			//		It ends the recording of the command buffers and submits them to the appropriate command queues.
-			//		It uses the semaphores to synchronize the execution of the command buffers between the copy, graphics, compute and decoding video queues.
+			//		It uses the semaphores to synchronize the execution of the command buffers between the copy, graphics, decoding video and compute queues.
 			//		The final submission also signals the fence to indicate the completion of the copy operation.
 
 			// 6. **Recycling**:
