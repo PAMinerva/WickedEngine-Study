@@ -3379,6 +3379,52 @@ using namespace vulkan_internal;
 			vulkan_check(vkCreateSampler(device, &createInfo, nullptr, &nullSampler));
 		}
 
+		// TIMESTAMP_FREQUENCY is the frequency of the timestamp counter in ticks per second.
+		// The timestampPeriod is a property of the physical device that indicates the number of nanoseconds
+		// it takes for the timestamp counter to increment by one (tick). This value is crucial for converting
+		// the raw timestamp query results, which are in "ticks", into actual time values in nanoseconds.
+		// Vulkan offers several query types that allow you to query different types of information from the GPU. One such query type is the timestamp query.
+		// This provides your application with a mechanism to time the execution of commands on the GPU. As with the other query types,
+		// a query pool is then used to either directly fetch or copy over the results to the host.
+		// It’s important to know that timestamp queries differ greatly from how timing can be done on the CPU with e.g. the high performance counter.
+		// This is mostly due to how a GPU’s dispatches, overlaps and finishes work across different stages of the pipeline.
+		// So while technically you can specify any pipeline stage at which the timestamp should be written,
+		// a lot of stage combinations and orderings won’t give meaningful result.This also means that you you can’t compare timestamps taken on different queues.
+		// So while it may may sound reasonable to write timestamps for the vertex and fragment shader stage directly one after another,
+		// that will usually not return meaningful results due to how the GPU works.
+		// And so for this example, we take the same approach as some popular CPU/GPU profilers by only using the top and bottom stages of the pipeline.
+		// This combination is known to give proper approximate timing results on most GPUs.
+		// Not all GPUs support timestamp queries, so before using them we need to make sure that they can be used.
+		// This differs slightly from checking other features with a simple VkBool.
+		// For example, we can check if the timestampPeriod limit of the physical device is greater than zero.
+		// Another limit we need to check is timestampComputeAndGraphics. If this is VK_TRUE, all graphics and compute pipelines support timestamp queries and
+		// the above check is sufficient. If not, we need to check if the queue we want to use supports timestamps:
+		// 
+		//		if (!device_limits.timestampComputeAndGraphics)
+		//		{
+		//			// Check if the graphics queue used in this sample supports time stamps
+		//			VkQueueFamilyProperties graphics_queue_family_properties = device->get_suitable_graphics_queue().get_properties();
+		//			if (graphics_queue_family_properties.timestampValidBits == 0)
+		//			{
+		//			throw std::runtime_error{ "The selected graphics queue family does not support timestamp queries!" };
+		//			}
+		//		}
+		//
+		// As with all query types, we first need to create a pool for the timestamp queries. This is used to store and read back the results.
+		// Before we can start writing data to the query pool, we need to reset it. This is done using vkCmdResetQueryPool at the start of the command buffer.
+		// Unlike getting CPU side timing information that can be queried immediately, with GPU time stamps we need to tell the implementation inside a
+		// command buffer when/where to write timestamps instead. The results are then fetched afterwards.
+		// This is done inside the command buffer with vkCmdWriteTimestamp.This function will request a timestamp to be written from the GPU for a
+		// certain pipeline stage and write that value to memory.
+		// Reading back the results can be done in two ways:
+		//	- Copy the results into a VkBuffer inside the command buffer using vkCmdCopyQueryPoolResults
+		//	- Get the results after the command buffer has finished executing using vkGetQueryPoolResults
+		// After we have read back the results to the host, we are ready to interpret them. E.g. for displaying them in a user interface.
+		// The results we got back do not actually contain a time value, but rather a number of "ticks".
+		// So to get the actual time value we need to translate these values first. This is done using timestampPeriod limit of the physical device.
+		// It contains the number of nanoseconds it takes for a timestamp query value to be increased by 1 ("tick").
+		// The formula used here is: 1 / timestampPeriod * 1e9, which converts the period to frequency in Hz (ticks per second).
+		// This conversion is essential for accurately measuring the time taken by GPU operations.
 		TIMESTAMP_FREQUENCY = uint64_t(1.0 / double(properties2.properties.limits.timestampPeriod) * 1000 * 1000 * 1000);
 
 		// Dynamic PSO states:
