@@ -49,6 +49,8 @@ namespace dx12_internal
 
 #ifdef PLATFORM_WINDOWS_DESKTOP
 	// On Windows PC we load DLLs manually because graphics device can be chosen at runtime:
+	// CreateDXGIFactory2 and DXGIGetDebugInterface1 declared in dxgi1_3.h, which is included in dxgi1_4.h,
+	// which is included in dxgi1_5.h, which is included in dxgi1_6.h, which is included in wiGraphicsDevice_DX12.h
 	using PFN_CREATE_DXGI_FACTORY_2 = decltype(&CreateDXGIFactory2);
 	static PFN_CREATE_DXGI_FACTORY_2 CreateDXGIFactory2 = nullptr;
 #ifdef _DEBUG
@@ -2176,6 +2178,7 @@ std::mutex queue_locker;
 	{
 		wi::Timer timer;
 
+		// Raytracing related stuff
 		SHADER_IDENTIFIER_SIZE = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 		TOPLEVEL_ACCELERATION_STRUCTURE_INSTANCE_SIZE = sizeof(D3D12_RAYTRACING_INSTANCE_DESC);
 
@@ -2232,6 +2235,14 @@ std::mutex queue_locker;
 			wi::platform::Exit();
 		}
 
+		// Serialization is the process of converting a data structure into a format that can be easily stored or transmitted. 
+		// In the context of DirectX 12, the root signature descriptor can be serialized into a binary blob.
+		// This is useful because it allows saving the root signature to a file or transmitting it over a network, 
+		// and then reconstructing (deserializing) it when needed.		
+		// Deserialization is the inverse process of serialization. It involves taking the serialized binary blob 
+		// and reconstructing the original data structure.
+		// In DirectX 12, this means taking the binary blob of the root signature and reconstructing the root signature descriptor 
+		// so that it can be used by the graphics device.
 		D3D12CreateVersionedRootSignatureDeserializer = (PFN_D3D12_CREATE_VERSIONED_ROOT_SIGNATURE_DESERIALIZER)wiGetProcAddress(dx12, "D3D12CreateVersionedRootSignatureDeserializer");
 		assert(D3D12CreateVersionedRootSignatureDeserializer != nullptr);
 		if (D3D12CreateVersionedRootSignatureDeserializer == nullptr)
