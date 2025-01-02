@@ -1008,6 +1008,9 @@ namespace wi::helper
 		std::filesystem::create_directories(ToNativeString(path));
 	}
 
+	// the argument passed to the parameter data is a wi::vector, which is defined as:
+	//		template<typename T, typename A = std::allocator<T>>
+	//		using vector = std::vector<T, A>;
 	template<template<typename T, typename A> typename vector_interface>
 	bool FileRead_Impl(const std::string& fileName, vector_interface<uint8_t, std::allocator<uint8_t>>& data, size_t max_read, size_t offset)
 	{
