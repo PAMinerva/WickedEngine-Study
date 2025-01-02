@@ -3348,6 +3348,9 @@ using namespace vulkan_internal;
 		{
 			pso_dynamicStates.push_back(VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR);
 		}
+
+		// Specify that the stride state in VkVertexInputBindingDescription will be ignored and
+		// must be set dynamically with vkCmdBindVertexBuffers2 before any draw call.
 		pso_dynamicStates.push_back(VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE);
 
 		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
