@@ -2306,11 +2306,13 @@ std::mutex queue_locker;
 				}
 			}
 
-			// IDXGIInfoQueue is used to configure and filter the debug output.
-			// SetBreakOnSeverity will cause the debug layer to break into the debugger when a message of the specified severity is emitted.
+			// IDXGIInfoQueue provides a information-queue interface to store, retrieve, and filter debug messages for DXGI.
+			// The queue consists of a message queue, an optional storage filter stack, and a optional retrieval filter stack.
+			// IDXGIInfoQueue can only be used if the debug layer is turned on.
+			// SetBreakOnSeverity Sets a message severity level to break on when a message with that severity level passes through the storage filter.
 			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION specifies a corruption message.
 			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR specifies an error message.
-			// AddStorageFilterEntries is used to filter out messages based on their ID.
+			// AddStorageFilterEntries adds storage filters to the top of the storage-filter stack. It is used to allow or deny messages in the message queue based on their ID.
 #if defined(_DEBUG)
 			ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
 			if (DXGIGetDebugInterface1 != nullptr && SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf()))))
@@ -2379,8 +2381,13 @@ std::mutex queue_locker;
 		{
 			if (queryByPreference)
 			{
+				// EnumAdapterByGpuPreference enumerates graphics adapters based on a given GPU preference.
+				// The index parameter is an index into the list of adapters that meet the GPU preference criteria.
+				// The indices are in order of the preference specified in GpuPreference—for example, if DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE is specified,
+				// then the highest-performing adapter is at index 0, the second-highest is at index 1, and so on.
 				return dxgiFactory6->EnumAdapterByGpuPreference(index, preference == GPUPreference::Integrated ? DXGI_GPU_PREFERENCE_MINIMUM_POWER : DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(ppAdapter));
 			}
+			// EnumAdapters1 is similar to EnumAdapterByGpuPreference, but it doesn't take a GPU preference parameter.
 			return dxgiFactory->EnumAdapters1(index, ppAdapter);
 		};
 
@@ -2432,6 +2439,9 @@ std::mutex queue_locker;
 		if (validationMode != ValidationMode::Disabled)
 		{
 			// Configure debug device (if active).
+			// ID3D12InfoQueue provides a information-queue interface to store, retrieve, and filter debug messages for D3D.
+			// The queue consists of a message queue, an optional storage filter stack, and a optional retrieval filter stack.
+			// ID3D12InfoQueue can only be used if the debug layer is turned on.
 			ComPtr<ID3D12InfoQueue> d3dInfoQueue;
 			if (SUCCEEDED(device.As(&d3dInfoQueue)))
 			{
