@@ -2286,16 +2286,32 @@ std::mutex queue_locker;
 				}
 
 				// DRED
+				// Device Removed Extended Data (DRED) is a feature that can help you identify the cause of a device-removed error.
+				// When a device-removed error occurs, DRED captures information about the state of the GPU and driver at the time of the error.
+				// A device can be removed by the OS for many reasons, such as a long-running operation, a bad command list, or hardware (e.g., overheating,
+				// gpu memory problems, supply voltage issues, etc.) and software (e.g., driver bug) failures.
 				ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
 				if (SUCCEEDED(D3D12GetDebugInterface(PPV_ARGS(pDredSettings))))
 				{
 					// Turn on auto-breadcrumbs and page fault reporting.
+					// Breadcrumbs are markers that can be placed in the GPU command stream to track GPU progress before a Timeout Detection and Recovery (TDR)
+					// or a device removal.
+					// GPU Page faults occur when the GPU tries to references a deleted object, an evicted resource, an uninitialized or stale descriptor, or
+					// tries to index beyond the end of a root binding.
+					// SetAutoBreadcrumbsEnablement enables auto insertion of breadcrumbs after each "render op" (e.g. Draw, Dispatch, Copy, Resolve, etc…)
+					// SetPageFaultEnablement can be used to turn on GPU page fault reporting.
+					// SetBreadcrumbContextEnablement provides additional context around the breadcrumb.
 					pDredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 					pDredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 					pDredSettings->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
 				}
 			}
 
+			// IDXGIInfoQueue is used to configure and filter the debug output.
+			// SetBreakOnSeverity will cause the debug layer to break into the debugger when a message of the specified severity is emitted.
+			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION specifies a corruption message.
+			// DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR specifies an error message.
+			// AddStorageFilterEntries is used to filter out messages based on their ID.
 #if defined(_DEBUG)
 			ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
 			if (DXGIGetDebugInterface1 != nullptr && SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(dxgiInfoQueue.GetAddressOf()))))
@@ -2333,6 +2349,8 @@ std::mutex queue_locker;
 		}
 
 		// Determines whether tearing support is available for fullscreen borderless windows.
+		// This allows for presenting a frame immediately after the previous one, without waiting for the next vertical sync
+		// (usefull for variable refresh rate displays)
 		{
 			BOOL allowTearing = FALSE;
 
