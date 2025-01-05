@@ -2477,6 +2477,13 @@ std::mutex queue_locker;
 		allocatorDesc.pAdapter = dxgiAdapter.Get();
 		//allocatorDesc.PreferredBlockSize = 256 * 1024 * 1024;
 		//allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_ALWAYS_COMMITTED;
+		// These flags are optional but recommended.
+		// ALLOCATOR_FLAG_MSAA_TEXTURES_ALWAYS_COMMITTED:
+		// If an MSAA texture requires a 4 MB alignment and another resource in 
+		// the same heap only requires 64 KB alignment, the allocator may struggle to align 
+		// the MSAA texture correctly without wasting significant space. By committing 
+		// MSAA textures, they are allocated with their own dedicated heap, ensuring proper 
+		// alignment and efficient memory use.
 		allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_DEFAULT_POOLS_NOT_ZEROED;
 		allocatorDesc.Flags |= D3D12MA::ALLOCATOR_FLAG_MSAA_TEXTURES_ALWAYS_COMMITTED;
 
