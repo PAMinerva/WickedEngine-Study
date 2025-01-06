@@ -82,6 +82,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	application.infoDisplay.watermark = true;
 	application.infoDisplay.resolution = true;
 	application.infoDisplay.fpsinfo = true;
+    application.infoDisplay.colorspace = true;
+    application.infoDisplay.device_name = true;
 
 	Sample sample;  // Sample class instance
 
