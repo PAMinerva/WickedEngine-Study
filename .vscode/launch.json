@@ -7,7 +7,7 @@
         "name": "Win32 Debug",
         "type": "cppvsdbg",
         "request": "launch",
-        "cwd": "${workspaceFolder}",    
+        "cwd": "${workspaceFolder}/build/Samples/Tutorial/01-HelloTriangle/Debug",    
         "args": [],
         "stopAtEntry": false,
         "environment": [],
