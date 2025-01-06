@@ -1148,7 +1148,7 @@ namespace vulkan_internal
 			{
 				surfaceFormat = format;
 				valid = true;
-				break;
+				continue; //break;
 			}
 		}
 		if (!valid)
