@@ -2603,6 +2603,8 @@ std::mutex queue_locker;
 			allocationhandler->free_bindless_res.reserve(BINDLESS_RESOURCE_CAPACITY);
 			for (int i = 0; i < BINDLESS_RESOURCE_CAPACITY; ++i)
 			{
+				// mark the first 500k descriptors as free by storing their indices
+				// (in reverse order so that we can pop_back starting from the first one with index 0)
 				allocationhandler->free_bindless_res.push_back(BINDLESS_RESOURCE_CAPACITY - i - 1);
 			}
 		}
@@ -2834,6 +2836,10 @@ std::mutex queue_locker;
 			D3D12_FORMAT_SUPPORT2 formatSupport2 = D3D12_FORMAT_SUPPORT2_NONE;
 
 			hr = features.FormatSupport(DXGI_FORMAT_R11G11B10_FLOAT, formatSupport1, formatSupport2);
+			// D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD indicates that the format supports unordered access view (UAV) loads
+			// from a UAV resource in a typed manner, meaning the data is interpreted according to the format's type (e.g., R11G11B10_FLOAT).
+			// This flag is useful for ensuring that a specific format can be used for UAV operations that involve reading data from a view
+			// that specifies that format.
 			if (SUCCEEDED(hr) && (formatSupport2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD) != 0)
 			{
 				capabilities |= GraphicsDeviceCapability::UAV_LOAD_FORMAT_R11G11B10_FLOAT;
@@ -2874,6 +2880,9 @@ std::mutex queue_locker;
 		}
 
 		// Fully typed casting: https://microsoft.github.io/DirectX-Specs/d3d/RelaxedCasting.html#casting-rules-for-rs2-drivers
+		// It's an alternative way to cast resources between different formats without creating the main resource with a TYPELESS
+		// format and then create the views with a typed format that is in the same format family as the main resource’s TYPELESS format.
+		// see https://wickedengine.net/2022/11/graphics-api-secrets-format-casting/
 		casting_fully_typed_formats = features.CastingFullyTypedFormatSupported();
 
 		resource_heap_tier = features.ResourceHeapTier();
