@@ -58,6 +58,8 @@ int main(const int argc, const char* argv[])
     application.infoDisplay.watermark = true;
     application.infoDisplay.resolution = true;
     application.infoDisplay.fpsinfo = true;
+    application.infoDisplay.colorspace = true;
+    application.infoDisplay.device_name = true;
 
     sdl2::sdlsystem_ptr_t system = sdl2::make_sdlsystem(SDL_INIT_EVERYTHING | SDL_INIT_EVENTS);
     sdl2::window_ptr_t window = sdl2::make_window(
