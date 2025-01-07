@@ -69,6 +69,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     wi::helper::StringConvert("Hello Triangle", szTitle, MAX_LOADSTRING);
     wi::helper::StringConvert("LVWndClass", szWindowClass, MAX_LOADSTRING);
 
+	// disable HDR rendering (even if supported by the display).
+	// Otherwise, the HDR color space could be selected even if HDR is disabled in Windows display settings, which is not desirable.
+	application.allow_hdr = false;
+
 	// Create a window and call Application::SetWindow, which creates a graphics device and swapchain for the window
     if (!CreateWnd(szTitle, szWindowClass, hInstance, nCmdShow))
     {
