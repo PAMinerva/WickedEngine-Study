@@ -45,12 +45,12 @@ endif()
 
 set(LIBDXCOMPILER_PATH "${WICKED_ROOT_DIR}/WickedEngine/${LIB_DXCOMPILER}")
 set(STARTUP_LUA "${WICKED_ROOT_DIR}/Editor/startup.lua")
-message("libdxcompiler found at ${LIBDXCOMPILER_PATH}")
+message("dxcompiler found at ${LIBDXCOMPILER_PATH}")
 message("startup lua found at ${STARTUP_LUA}")
 
-# Copy shader compiler library in build/Samples/01-Hello-Triangle
+# Copy shader compiler library in build/Samples/Tutorial/01-Hello-Triangle/[Debug, Release]
 add_custom_command(
     TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LIBDXCOMPILER_PATH} ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${STARTUP_LUA} ${CMAKE_CURRENT_BINARY_DIR}/startup.lua
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LIBDXCOMPILER_PATH} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${STARTUP_LUA} ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/startup.lua
 )
