@@ -2882,7 +2882,7 @@ std::mutex queue_locker;
 			capabilities |= GraphicsDeviceCapability::ALIASING_GENERIC;
 		}
 
-		if (features.CacheCoherentUMA())
+		if (features.CacheCoherentUMA()) // false for discrete GPUs
 		{
 			capabilities |= GraphicsDeviceCapability::CACHE_COHERENT_UMA;
 
@@ -2896,6 +2896,8 @@ std::mutex queue_locker;
 
 #ifdef PLATFORM_WINDOWS_DESKTOP
 		// Create fence to detect device removal
+		// A fence is a DX object with a value that can be used to synchronize the CPU and GPU.
+		// Indeed, you can access it both from the CPU and the GPU to set or check its value.
 		{
 			dx12_check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(deviceRemovedFence.GetAddressOf())));
 			dx12_check(deviceRemovedFence->SetName(L"deviceRemovedFence"));
