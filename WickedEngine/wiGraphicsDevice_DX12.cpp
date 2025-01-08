@@ -2279,15 +2279,15 @@ std::mutex queue_locker;
 
 				// DRED
 				// Device Removed Extended Data (DRED) is a feature that can help you identify the cause of a device-removed error.
-				// A device-removed error is simply the result of errors that occur in the GPU and drivers throughout the D3D12 API.
-				// It happens when the OS or the D3D12 runtime determines that continuing the execution of the context is not safe.
+				// A device-removed error is simply the result of unrecoverable errors that occur in GPU operation or drivers code.
+				// It happens when continuing the execution of the context is not safe.
 				// They can be broadly categorized into two types:
-				// - TDR (Timeout Detection and Recovery), caused by the OS when a driver or GPU fails to respond to the OS within a
-				//	 certain amount of time (e.g., when there is an unexpectedly long operation in the driver or shader code, or when
-				//	 a fence is not resolved for a long time due to a misconfiguration of Signal and Wait.
-				// - Error Detection, caused when the OS or D3D12 runtime detects some uncontrollable error occurs (e.g., page fault on
-				//   GPU access to resources that do not exist or access that is different from the intended use that was declared,
-				//   corruption of command list due to unauthorized overwriting, accessing resources in unauthorized states or misaligned).
+				// - TDR (Timeout Detection and Recovery): caused when a driver or GPU fails to respond within a certain amount of time
+				//   (e.g., when there is an unexpectedly long operation in the driver or shader code, or when there is an incorrect
+				//   synchronization between wait and signal operations on a fence).
+				// - Fault: caused when, for example, there is a read or write operation in a non-resident page of memory, or when there
+				//   is an invalid access for a resource (e.g.read a buffer as texture), or as a conseguence of a corrupted command list,
+				//   or when accessing a misaligned resources.
 				// When a device-removed error occurs, DRED captures information about the state of the GPU and driver at the time of the error.
 				ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
 				if (SUCCEEDED(D3D12GetDebugInterface(PPV_ARGS(pDredSettings))))
