@@ -2276,9 +2276,16 @@ std::mutex queue_locker;
 
 				// DRED
 				// Device Removed Extended Data (DRED) is a feature that can help you identify the cause of a device-removed error.
+				// A device-removed error is simply the result of errors that occur in the GPU and drivers throughout the D3D12 API.
+				// It happens when the OS or the D3D12 runtime determines that continuing the execution of the context is not safe.
+				// They can be broadly categorized into two types:
+				// - TDR (Timeout Detection and Recovery), caused by the OS when a driver or GPU fails to respond to the OS within a
+				//	 certain amount of time (e.g., when there is an unexpectedly long operation in the driver or shader code, or when
+				//	 a fence is not resolved for a long time due to a misconfiguration of Signal and Wait.
+				// - Error Detection, caused when the OS or D3D12 runtime detects some uncontrollable error occurs (e.g., page fault on
+				//   GPU access to resources that do not exist or access that is different from the intended use that was declared,
+				//   corruption of command list due to unauthorized overwriting, accessing resources in unauthorized states or misaligned).
 				// When a device-removed error occurs, DRED captures information about the state of the GPU and driver at the time of the error.
-				// A device can be removed by the OS for many reasons, such as a long-running operation, a bad command list, or hardware (e.g., overheating,
-				// gpu memory problems, supply voltage issues, etc.) and software (e.g., driver bug) failures.
 				ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
 				if (SUCCEEDED(D3D12GetDebugInterface(PPV_ARGS(pDredSettings))))
 				{
@@ -2849,8 +2856,12 @@ std::mutex queue_locker;
 		// A fence is a DX object with a value that can be used to synchronize the CPU and GPU.
 		// Indeed, you can access it both from the CPU and the GPU to set or check its value.
 		{
+			// When a fence is create using a device, the fence is monitored by the device.
 			dx12_check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(deviceRemovedFence.GetAddressOf())));
 
+			// A device removal will cause all devices' monitored fences to be signaled to UINT64_MAX,
+			// so you can create a callback for device removal using an event.
+			// see https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device5-removedevice
 			HANDLE deviceRemovedEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 			dx12_check(deviceRemovedFence->SetEventOnCompletion(UINT64_MAX, deviceRemovedEvent));
 
