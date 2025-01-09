@@ -2275,17 +2275,19 @@ std::mutex queue_locker;
 				}
 
 				// DRED
-				// Device Removed Extended Data (DRED) is a feature that can help you identify the cause of a device-removed error.
-				// A device-removed error is simply the result of unrecoverable errors that occur in GPU operation or drivers code.
+				// Existing debugging aids like the Debug Layer, GPU-Based Validation and PIX help, but these do not catch all errors that potentially produce GPU faults.
+				// Device Removed Extended Data (DRED) is a feature that can help you identify GPU faults, which are a common source of device-removed errors.
+				// A device-removed error is simply the result of unrecoverable errors that occur in GPU operations.
 				// It happens when continuing the execution of the context is not safe.
+				// DRED extends the debugging toolset by provided additional data about the state of GPU workload execution at (or near) the time of the GPU error.
+				// DRED data includes automatic breadcrumbs (see below) and GPU Page Fault analysis.
 				// They can be broadly categorized into two types:
-				// - TDR (Timeout Detection and Recovery): caused when a driver or GPU fails to respond within a certain amount of time
-				//   (e.g., when there is an unexpectedly long operation in the driver or shader code, or when there is an incorrect
+				// - TDR (Timeout Detection and Recovery): caused when a GPU fails to respond within a certain amount of time
+				//   (e.g., when there is an unexpectedly long operation in the shader code; for example, an infinite loop), or when there is an incorrect
 				//   synchronization between wait and signal operations on a fence).
 				// - Fault: caused when, for example, there is a read or write operation in a non-resident page of memory, or when there
-				//   is an invalid access for a resource (e.g.read a buffer as texture), or as a conseguence of a corrupted command list,
-				//   or when accessing a misaligned resources.
-				// When a device-removed error occurs, DRED captures information about the state of the GPU and driver at the time of the error.
+				//   is an invalid access for a resource (e.g., read a buffer as texture), or as a conseguence of a corrupted command list,
+				//   or when accessing misaligned resources.
 				ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> pDredSettings;
 				if (SUCCEEDED(D3D12GetDebugInterface(PPV_ARGS(pDredSettings))))
 				{
