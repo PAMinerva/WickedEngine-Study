@@ -718,7 +718,7 @@ namespace wi
 		}
 		wi::graphics::GetDevice() = graphicsDevice.get();
 
-		canvas.init(window);
+		canvas.init(window); // specifies a DPI-aware drawing area from the window handle.
 
 		SwapChainDesc desc;
 		if (swapChain.IsValid())
@@ -732,7 +732,7 @@ namespace wi
 			desc.buffer_count = 3;
 			if (graphicsDevice->CheckCapability(GraphicsDeviceCapability::R9G9B9E5_SHAREDEXP_RENDERABLE))
 			{
-				desc.format = Format::R9G9B9E5_SHAREDEXP;
+				desc.format = Format::R9G9B9E5_SHAREDEXP; // this format is not supported by all GPUs, but it is the best for HDR rendering
 			}
 			else
 			{
