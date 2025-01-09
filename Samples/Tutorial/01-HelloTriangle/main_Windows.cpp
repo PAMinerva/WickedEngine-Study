@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "sample.h"
 
+#include "resource.h"
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -12,6 +14,7 @@ wi::Application application;					// Application class
 // Forward declarations of functions included in this code module:
 BOOL                CreateWnd(WCHAR szTitle[], WCHAR szWindowClass[], HINSTANCE hInstance, int nCmdShow);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 _Use_decl_annotations_
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -112,6 +115,51 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int) msg.wParam;
 }
 
+BOOL CreateWnd(WCHAR szTitle[], WCHAR szWindowClass[], HINSTANCE hInstance, int nCmdShow)
+{
+	// Register a window class
+	WNDCLASSEXW wcex{ 0 };
+
+	wcex.cbSize = sizeof(WNDCLASSEXW);
+
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProc;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = hInstance;
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_TEMPLATEWINDOWS));
+	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_TEMPLATEWINDOWS);
+	wcex.lpszClassName = szWindowClass;
+	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+
+	if (!RegisterClassExW(&wcex))
+	{
+		DWORD error = GetLastError();
+		return false;
+	}
+
+	// Create a window
+	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+
+	if (!hWnd)
+	{
+		return false;
+	}
+
+	ShowWindow(hWnd, nCmdShow);
+	UpdateWindow(hWnd);
+
+	// assign window handle (mandatory)
+	// create a graphics device and swapchain for the window
+	// set shader path to the shader folder containing the compiled shader binaries
+	application.SetWindow(hWnd);
+
+	return TRUE;
+}
+
 //
 //  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -129,12 +177,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
     switch (message)
     {
-    case WM_CREATE:
+	case WM_COMMAND:
+		{
+			int wmId = LOWORD(wParam);
+			// Parse the menu selections:
+			switch (wmId)
+			{
+			case IDM_ABOUT:
+				DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+				break;
+			case IDM_EXIT:
+				DestroyWindow(hWnd);
+				break;
+			default:
+				return DefWindowProc(hWnd, message, wParam, lParam);
+			}
+		}
+		break;
+    /*case WM_CREATE:
         {
             // Store application passed in to CreateWindow.
             LPCREATESTRUCT pCreateStruct = reinterpret_cast<LPCREATESTRUCT>(lParam);
             SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pCreateStruct->lpCreateParams));
-        }
+        }*/
         return 0;
     case WM_SIZE:
     case WM_DPICHANGED:
@@ -164,47 +229,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-BOOL CreateWnd(WCHAR szTitle[], WCHAR szWindowClass[], HINSTANCE hInstance, int nCmdShow)
+// Message handler for about box.
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    // Register a window class
-    WNDCLASSEXW wcex {0};
+	UNREFERENCED_PARAMETER(lParam);
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		return (INT_PTR)TRUE;
 
-    wcex.cbSize = sizeof(WNDCLASSEXW);
-
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    //wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_TEMPLATEWINDOWS));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    //wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_TEMPLATEWINDOWS);
-    wcex.lpszClassName  = szWindowClass;
-    //wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-
-    if (!RegisterClassExW(&wcex))
-    {
-        DWORD error = GetLastError();
-        return false;
-    }
-
-    // Create a window
-    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-    CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-    if (!hWnd)
-    {
-        return false;
-    }
-
-    ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
-
-	// assign window handle (mandatory)
-	// create a graphics device and swapchain for the window
-	// set shader path to the shader folder containing the compiled shader binaries
-    application.SetWindow(hWnd);
-
-    return TRUE;
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+		{
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
 }
