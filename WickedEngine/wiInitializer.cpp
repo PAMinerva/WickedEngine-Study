@@ -7,10 +7,10 @@
 
 namespace wi::initializer
 {
-	static std::atomic_bool initializationStarted{ false };      // atomic flag indicating async initialization for multiple systems/component is started
+	static std::atomic_bool initializationStarted{ false };      // atomic flag indicating if async initialization for the application components\systems is started
 	static wi::jobsystem::context ctx;                           // job system context for async initialization
 	static wi::Timer timer;								         // timer to measure initialization time
-	static std::atomic_bool systems[INITIALIZED_SYSTEM_COUNT]{}; // atomic flags to check if a specific system is initialized
+	static std::atomic_bool systems[INITIALIZED_SYSTEM_COUNT]{}; // atomic flags to check if a specific component\system (or all of them) has been initialized already
 
 	void InitializeComponentsImmediate()
 	{
@@ -56,7 +56,7 @@ namespace wi::initializer
 
 		wi::backlog::post("");
 
-		// Start some threads that execute (in parallel) jobs (if available) stored in job queues (otherwise, they simply waits)
+		// Start some threads that execute jobs (in parallel, if actually available) stored in job queues (otherwise, they simply waits)
 		wi::jobsystem::Initialize();
 
 		wi::backlog::post("");

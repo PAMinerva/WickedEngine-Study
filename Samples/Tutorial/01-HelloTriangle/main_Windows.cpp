@@ -94,7 +94,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	Sample sample;  // Sample class instance
 
-	application.Initialize(); // Initializes the job system to execute the initialization of the application components
+	application.Initialize(); // Initializes the job system to execute the initialization of application components
     application.ActivatePath(sample.GetRenderPath3D());
 
 

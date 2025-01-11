@@ -234,7 +234,7 @@ namespace wi::jobsystem
 
 					while (internal_state.alive.load())
 					{
-						// The worker thread will attempt to execute jobs by checking if there are any in the job queues.
+						// The worker thread will attempt to execute jobs by checking if there are any in the related job queue.
 						res.work(threadID);
 
 						// finished with jobs, put to sleep
