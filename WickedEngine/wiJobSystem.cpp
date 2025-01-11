@@ -219,13 +219,13 @@ namespace wi::jobsystem
 					}
 #else
 				// Create and store a thread in the array PriorityResources::threads specifying a lamda function that
-				// will execute jobs until there are no more left or the job system is shot down.
-				// The lambda function is executed as soon as the thread is created.
+				// will execute jobs until there are no more left in the job queues or the job system is shot down.
+				// The lambda function is executed as soon as the thread is created (that is, when it is emplaced back into the array).
 				std::thread& worker = res.threads.emplace_back([threadID, &res] {
 #endif
 					while (internal_state.alive.load())
 					{
-						// The worker thread will attempt to execute jobs by checking if there are any in the job queues.
+						// The worker thread will attempt to execute jobs by checking if there are any in the related job queue.
 						res.work(threadID);
 
 						// finished with jobs, put to sleep
