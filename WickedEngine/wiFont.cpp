@@ -302,6 +302,7 @@ namespace wi::font
 		// add default font if there is none yet:
 		if (fontStyles.empty())
 		{
+			// Add Liberation Sans font (as a FontStyle) to fontStyles vector and calculate font metrics: ascent, descent, lineGap
 			AddFontStyle("Liberation Sans", liberation_sans, sizeof(liberation_sans));
 		}
 
