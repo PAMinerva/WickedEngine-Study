@@ -90,7 +90,7 @@ namespace wi::jobsystem
 		std::mutex waitingMutex; // for unblocking a Wait()
 
 		// Start working on a job queue
-		//	After the job queue is finished, it can switch to an other queue and steal jobs from there
+		// After the job queue is finished, it can switch to an other queue and steal jobs from there
 		inline void work(uint32_t startingQueue)
 		{
 			Job job;
@@ -375,6 +375,9 @@ namespace wi::jobsystem
 			return;
 		}
 
+		// Add a job to a job queue in the array PriorityResources::jobQueuePerThread
+		// and wake up a sleeping thread to initialize a system.
+		// See emplace_back in the Initialize method above for more details
 		res.jobQueuePerThread[res.nextQueue.fetch_add(1) % res.numThreads].push_back(job);
 		res.sleepingCondition.notify_one();
 	}
