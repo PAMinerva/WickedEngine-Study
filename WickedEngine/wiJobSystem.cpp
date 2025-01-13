@@ -88,7 +88,7 @@ namespace wi::jobsystem
 		std::mutex wakeMutex;
 
 		// Start working on a job queue
-		//	After the job queue is finished, it can switch to an other queue and steal jobs from there
+		// After the job queue is finished, it can switch to an other queue and steal jobs from there
 		inline void work(uint32_t startingQueue)
 		{
 			Job job;
@@ -223,6 +223,7 @@ namespace wi::jobsystem
 				// The lambda function is executed as soon as the thread is created (that is, when it is emplaced back into the array).
 				std::thread& worker = res.threads.emplace_back([threadID, &res] {
 #endif
+					// The worker thread will execute jobs until the job system is shot down.
 					while (internal_state.alive.load())
 					{
 						// The worker thread will attempt to execute jobs by checking if there are any in the related job queue.
@@ -366,6 +367,9 @@ namespace wi::jobsystem
 			return;
 		}
 
+		// Add a job to a job queue in the array PriorityResources::jobQueuePerThread
+		// and wake up a sleeping thread to initialize a system.
+		// See emplace_back in the Initialize method above for more details
 		res.jobQueuePerThread[res.nextQueue.fetch_add(1) % res.numThreads].push_back(job);
 		res.wakeCondition.notify_one();
 	}
