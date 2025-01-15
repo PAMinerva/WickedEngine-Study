@@ -547,6 +547,8 @@ namespace wi::shadercompiler
 
 		if (input.format == ShaderFormat::HLSL6)
 		{
+			// When a shader is compiled with HLSL6, a hash of the shader is stored in the shader.
+			// The blob content returned using IDxcResult::GetOutput(DXC_OUT_SHADER_HASH, ...) maps to the DxcShaderHash structure
 			CComPtr<IDxcBlob> pHash = nullptr;
 			hr = pResults->GetOutput(DXC_OUT_SHADER_HASH, IID_PPV_ARGS(&pHash), nullptr);
 			assert(SUCCEEDED(hr));
