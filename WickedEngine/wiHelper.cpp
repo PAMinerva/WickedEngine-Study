@@ -1399,7 +1399,6 @@ namespace wi::helper
 			MultiByteToWideChar(CP_UTF8, 0, from.c_str(), -1, &to[0], num);
 		}
 #else
-		// to = std::filesystem::path(from).wstring();
 		std::wstring_convert<std::codecvt_utf8<wchar_t>> cv;
 		to = cv.from_bytes(from);
 #endif // _WIN32
@@ -1415,7 +1414,6 @@ namespace wi::helper
 			WideCharToMultiByte(CP_UTF8, 0, from.c_str(), -1, &to[0], num, NULL, NULL);
 		}
 #else
-		// to = std::filesystem::path(from).u8string();
 		std::wstring_convert<std::codecvt_utf8<wchar_t>> cv;
 		to = cv.to_bytes(from);
 #endif // _WIN32
