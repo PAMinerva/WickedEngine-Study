@@ -772,8 +772,9 @@ bool LoadShader(
 		input.format = device->GetShaderFormat();
 		input.stage = stage;
 		input.minshadermodel = minshadermodel;
-		input.defines = permutation_defines;
+		input.defines = permutation_defines; // add defines
 
+		// Add the shader source directory which also include header files
 		std::string sourcedir = SHADERSOURCEPATH;
 		wi::helper::MakePathAbsolute(sourcedir);
 		input.include_directories.push_back(sourcedir);
