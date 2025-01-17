@@ -787,6 +787,9 @@ bool LoadShader(
 
 		if (output.IsValid())
 		{
+			// Save cso file and meta data files on disk.
+			// In this case, the meta data only includes the relative path (with respect to the meta data file) of the shader dependecies:
+			// the hlsli header files used by the shader.
 			wi::shadercompiler::SaveShaderAndMetadata(shaderbinaryfilename, output);
 
 			if (!output.error_message.empty())
@@ -794,6 +797,8 @@ bool LoadShader(
 				wi::backlog::post(output.error_message, wi::backlog::LogLevel::Warning);
 			}
 			wi::backlog::post("shader compiled: " + shaderbinaryfilename);
+
+			// Save the shader blob and create the root signature, then retun true if succeess
 			return device->CreateShader(stage, output.shaderdata, output.shadersize, &shader);
 		}
 		else
