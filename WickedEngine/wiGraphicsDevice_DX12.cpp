@@ -3966,6 +3966,8 @@ std::mutex queue_locker;
 
 		HRESULT hr = dx12_check((internal_state->shadercode.empty() ? E_FAIL : S_OK));
 
+		// Create a root signature from the blob of the compiled shader, which include the
+		// serialized root signature since the root signature is defined in the shader code.
 		hr = dx12_check(D3D12CreateVersionedRootSignatureDeserializer(
 			internal_state->shadercode.data(),
 			internal_state->shadercode.size(),
