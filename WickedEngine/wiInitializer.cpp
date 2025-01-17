@@ -56,7 +56,7 @@ namespace wi::initializer
 		wi::backlog::post("");
 
 		// Each wi::jobsystem::Execute add a job to the a job queue and wake up a sleeping thread to initialize a system.
-		// Each wi::jobsystem::Execute executes in parallel if there are available threads.
+		// Each call to wi::jobsystem::Execute executes in parallel if there are available threads.
 		// A Job is a structure that contains a context, a task, etc.
 		// A task is a function that takes a JobArgs structure as an argument.
 		// A context defines the state of execution (priority of execution and number of threads that are executing a job in parallel at the same priority level).
