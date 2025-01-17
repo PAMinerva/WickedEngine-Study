@@ -283,6 +283,8 @@ namespace wi::font
 		wi::renderer::LoadShader(ShaderStage::VS, vertexShader, "fontVS.cso");
 		wi::renderer::LoadShader(ShaderStage::PS, pixelShader, "fontPS.cso");
 
+		// Create two PSOs to render the font:
+		// one with no depth test, one with depth test enabled
 		for (int d = 0; d < DEPTH_TEST_MODE_COUNT; ++d)
 		{
 			PipelineStateDesc desc;
