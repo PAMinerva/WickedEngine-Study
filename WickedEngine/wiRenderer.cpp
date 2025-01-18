@@ -2645,8 +2645,8 @@ void Initialize()
 {
 	wi::Timer timer;
 
-	SetUpStates();
-	LoadBuffers();
+	SetUpStates(); // Create various states such as sampler states, blend states, rasterizer states, etc.
+	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
 	LoadShaders();
