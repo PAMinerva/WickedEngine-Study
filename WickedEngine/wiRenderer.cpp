@@ -1194,7 +1194,7 @@ void LoadShaders()
 
 	});
 
-	wi::jobsystem::Wait(ctx); // wait for all jobs associated with the context to be picked up by any thread and finished
+	wi::jobsystem::Wait(ctx); // wait for all jobs associated with ctx to be picked up by any thread and finished
 
 	if (device->CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
 	{
