@@ -1194,7 +1194,7 @@ void LoadShaders()
 
 	});
 
-	wi::jobsystem::Wait(ctx);
+	wi::jobsystem::Wait(ctx); // wait for all jobs associated with the context to be picked up by any thread and finished
 
 	if (device->CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
 	{
@@ -2674,7 +2674,7 @@ void Initialize()
 	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
-	LoadShaders();
+	LoadShaders(); // Compile and save various shaders for different rendering purposes
 
 	wilog("wi::renderer Initialized (%d ms)", (int)std::round(timer.elapsed()));
 	initialized.store(true);
