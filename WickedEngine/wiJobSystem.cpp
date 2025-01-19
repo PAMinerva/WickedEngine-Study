@@ -44,6 +44,7 @@ namespace wi::jobsystem
 				args.sharedmemory = nullptr;
 			}
 
+			// For each job in the group, execute the task
 			for (uint32_t j = groupJobOffset; j < groupJobEnd; ++j)
 			{
 				args.jobIndex = j;
