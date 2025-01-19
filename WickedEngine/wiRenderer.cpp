@@ -1185,6 +1185,8 @@ void LoadShaders()
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) { LoadShader(ShaderStage::DS, shaders[DSTYPE_OBJECT_PREPASS_ALPHATEST], "objectDS_prepass_alphatest.cso"); });
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) { LoadShader(ShaderStage::DS, shaders[DSTYPE_OBJECT_SIMPLE], "objectDS_simple.cso"); });
 
+	// wi::jobsystem::Dispatch allows to execute groups of jobs in parallel.
+	// In this case, we only use Dispatch to compile the same pixel shader code with different defines.
 	wi::jobsystem::Dispatch(objectps_ctx, MaterialComponent::SHADERTYPE_COUNT, 1, [](wi::jobsystem::JobArgs args) {
 
 		LoadShader(
@@ -1197,6 +1199,7 @@ void LoadShaders()
 
 	});
 
+	// This is similar to the previous Dispatch, but this time we also add the "TRANSPARENT" define.
 	wi::jobsystem::Dispatch(objectps_ctx, MaterialComponent::SHADERTYPE_COUNT, 1, [](wi::jobsystem::JobArgs args) {
 
 		auto defines = MaterialComponent::shaderTypeDefines[args.jobIndex];
@@ -1211,7 +1214,9 @@ void LoadShaders()
 
 	});
 
-	wi::jobsystem::Wait(ctx); // wait for all jobs associated with ctx to be picked up by any thread and finished
+	// Wait for all jobs associated with ctx to be picked up by any thread and finished.
+	// This is necessary, as explained in the comment describing the desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE] instruction below.
+	wi::jobsystem::Wait(ctx);
 
 	if (device->CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
 	{
@@ -1227,7 +1232,7 @@ void LoadShaders()
 			PipelineStateDesc desc;
 			desc.as = &shaders[ASTYPE_OBJECT];
 			desc.ms = &shaders[MSTYPE_OBJECT_SIMPLE];
-			desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE]; // this is created in a different thread, so wait for the ctx before getting here
+			desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE]; // this is created in a different thread, so wait for the ctx before getting here (see above)
 			desc.rs = &rasterizers[RSTYPE_WIRE];
 			desc.bs = &blendStates[BSTYPE_OPAQUE];
 			desc.dss = &depthStencils[DSSTYPE_DEFAULT];
@@ -1282,6 +1287,7 @@ void LoadShaders()
 
 		});
 
+	// Create various PSOs from all shaders that were loaded above
 	wi::jobsystem::Execute(ctx, [](wi::jobsystem::JobArgs args) {
 		PipelineStateDesc desc;
 		desc.vs = &shaders[VSTYPE_OBJECT_SIMPLE];

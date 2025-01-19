@@ -1419,6 +1419,9 @@ namespace dx12_internal
 			if (heap) allocationhandler->destroyer_queryheaps.push_back(std::make_pair(heap, framecount));
 		}
 	};
+
+	// PipelineState_DX12 used to store info both for a particolar shader (shader bytecode, input layout, root signature, etc.)
+	// and for the whole pipeline (pipeline state).
 	struct PipelineState_DX12
 	{
 		std::shared_ptr<GraphicsDevice_DX12::AllocationHandler> allocationhandler;
@@ -1434,6 +1437,16 @@ namespace dx12_internal
 		const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* rootsig_desc = nullptr;
 		RootSignatureOptimizer rootsig_optimizer;
 
+		// A pipeline state stream is a flexible and modular way to define the state of the graphics pipeline.
+		// Instead of defining a whole, complex structure with all the state information, a pipeline state stream allows
+		// you to specify only the parts of the state that are necessary for your application, making the code more modular
+		// and easier to manage.
+		// Each member of the PSO_STREAM struct represents a specific part of the pipeline state, such as the vertex shader,
+		// pixel shader, rasterizer state, blend state, etc. These members are initialized with the appropriate state information,
+		// which is later used to create the pipeline state object (PSO).
+		// The PSO_STREAM struct is divided into two sub-structs: PSO_STREAM1 and PSO_STREAM2. PSO_STREAM1 contains the
+		// traditional graphics pipeline state elements, while PSO_STREAM2 contains elements specific to mesh shaders and
+		// amplification shaders, which are part of the newer pipeline state features.
 		struct PSO_STREAM
 		{
 			struct PSO_STREAM1
@@ -4039,6 +4052,8 @@ std::mutex queue_locker;
 
 		return SUCCEEDED(hr);
 	}
+
+	// If renderpass_info is nullptr, then it will simply store the pipeline state data in the internal state for later use in creating the related PSO
 	bool GraphicsDevice_DX12::CreatePipelineState(const PipelineStateDesc* desc, PipelineState* pso, const RenderPassInfo* renderpass_info) const
 	{
 		auto internal_state = std::make_shared<PipelineState_DX12>();
@@ -4144,7 +4159,7 @@ std::mutex queue_locker;
 
 		assert(internal_state->rootSignature != nullptr);
 		assert(internal_state->rootsig_desc != nullptr);
-		internal_state->rootsig_optimizer.init(*internal_state->rootsig_desc);
+		internal_state->rootsig_optimizer.init(*internal_state->rootsig_desc); // associate shader registers with roor parameter indices
 
 		RasterizerState pRasterizerStateDesc = pso->desc.rs != nullptr ? *pso->desc.rs : RasterizerState();
 		CD3DX12_RASTERIZER_DESC rs = {};
