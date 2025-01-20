@@ -1167,6 +1167,7 @@ void LoadShaders()
 
 	// wi::jobsystem::Dispatch allows to execute groups of jobs in parallel.
 	// In this case, we only use Dispatch to compile the same pixel shader code with different defines.
+	// Note that we use a different context here.
 	wi::jobsystem::Dispatch(objectps_ctx, MaterialComponent::SHADERTYPE_COUNT, 1, [](wi::jobsystem::JobArgs args) {
 
 		LoadShader(
@@ -1194,7 +1195,7 @@ void LoadShaders()
 
 	});
 
-	// Wait for all jobs associated with ctx to be picked up by any thread and finished.
+	// Wait for all jobs queued above, associated with ctx, to be picked up by any thread and finished.
 	// This is necessary, as explained in the comment describing the desc.ps = &shaders[PSTYPE_OBJECT_SIMPLE] instruction below.
 	wi::jobsystem::Wait(ctx);
 
@@ -1795,8 +1796,11 @@ void LoadShaders()
 		RegisterCustomShader(customShader);
 	}
 
+	// Wait for all jobs queued above, associated with ctx, to be picked up by any thread and finished.
 	wi::jobsystem::Wait(ctx);
 
+	// Create more PSOs based on different pipeline states, render passes and shader types.
+	// We will submit this as jobs so that we won't have to wait for them to finish before we actually need them.
 	for (uint32_t renderPass = 0; renderPass < RENDERPASS_COUNT; ++renderPass)
 	{
 		for (uint32_t mesh_shader = 0; mesh_shader <= (device->CheckCapability(GraphicsDeviceCapability::MESH_SHADER) ? 1u : 0u); ++mesh_shader)
@@ -2654,7 +2658,7 @@ void Initialize()
 	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
-	LoadShaders(); // Compile and save various shaders for different rendering purposes
+	LoadShaders(); // Compile and save various shaders and create different PSOs for different rendering purposes
 
 	wilog("wi::renderer Initialized (%d ms)", (int)std::round(timer.elapsed()));
 	initialized.store(true);
