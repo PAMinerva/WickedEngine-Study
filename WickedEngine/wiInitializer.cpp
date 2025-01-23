@@ -77,6 +77,7 @@ namespace wi::initializer
 		wi::lua::Initialize(); systems[INITIALIZED_SYSTEM_LUA].store(true);
 		wi::audio::Initialize(); systems[INITIALIZED_SYSTEM_AUDIO].store(true);
 
+		// Start a thread that waits for the job system to finish all jobs queued above
 		std::thread([] {
 			wi::jobsystem::Wait(ctx);
 			wilog("\n[wi::initializer] Wicked Engine Initialized (%d ms)", (int)std::round(timer.elapsed()));
