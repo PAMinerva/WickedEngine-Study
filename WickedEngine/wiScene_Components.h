@@ -866,8 +866,8 @@ namespace wi::scene
 			uint16_t z = 0;
 			uint16_t w = 0;
 
-			// Convert a full 32-bit position to 16-bit vertex position:
-			// Calculate the vertex position relative to the AABB to normalize it to [0,1] range and remap it to 16-bit integer
+			// Convert a full 32-bit float to 16-bit unorm vertex position:
+			// Calculate the vertex position relative to the AABB to normalize it to [0,1] range and remap it to 16-bit unorm
 			constexpr void FromFULL(const wi::primitive::AABB& aabb, XMFLOAT3 pos, uint8_t wind)
 			{
 				pos = wi::math::InverseLerp(aabb._min, aabb._max, pos); // UNORM remap
@@ -882,7 +882,7 @@ namespace wi::scene
 				return XMLoadFloat3(&v);
 			}
 
-			// Convert 16-bit vertex position to full 32-bit position:
+			// Convert 16-bit unorm to full 32-bit float position:
 			// Map the 16-bit integer coordinates to [0,1] range and then remap it to the 3D space using Lerp,
 			// which invert the InverseLerp operation in executed FromFULL
 			constexpr XMFLOAT3 GetPOS(const wi::primitive::AABB& aabb) const
