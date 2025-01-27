@@ -22,6 +22,7 @@
 
 namespace wi::scene
 {
+	// This is the main scene class that holds all the entities and components
 	struct Scene
 	{
 		virtual ~Scene() = default;

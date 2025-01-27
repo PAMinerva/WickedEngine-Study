@@ -453,6 +453,8 @@ namespace wi::math
 
 		return retval;
 	}
+
+	// Map each color channel from 0.0-1.0 (float) to 0-255 (8 bit integer) and pack all of them into a single 32 bit integer
 	inline uint32_t CompressColor(const XMFLOAT4& color)
 	{
 		uint32_t retval = 0;
