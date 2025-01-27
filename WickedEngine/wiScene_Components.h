@@ -779,7 +779,7 @@ namespace wi::scene
 			}
 
 			// Convert 16-bit unorm to full 32-bit float position:
-			// Map the 16-bit integer coordinates to [0,1] range and then remap it to the 3D space using Lerp,
+			// Map the 16-bit unorm coordinates to [0,1] range and then remap the result to the 3D space using Lerp,
 			// which invert the InverseLerp operation in executed FromFULL
 			constexpr XMFLOAT3 GetPOS(const wi::primitive::AABB& aabb) const
 			{
