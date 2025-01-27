@@ -820,7 +820,7 @@ namespace wi::scene
 			}
 		}
 
-		const size_t position_stride = GetFormatStride(position_format);
+		const size_t position_stride = GetFormatStride(position_format); // stride is 8 bytes for R16G16B16A16_UNORM
 
 		GPUBufferDesc bd;
 		if (device->CheckCapability(GraphicsDeviceCapability::CACHE_COHERENT_UMA))
@@ -839,6 +839,9 @@ namespace wi::scene
 			bd.misc_flags |= ResourceMiscFlag::RAY_TRACING;
 		}
 		const uint64_t alignment = device->GetMinOffsetAlignment(&bd);
+
+		// This buffer will contain various vertex data, and index data as well.
+		// Each data type will be aligned as if we had multiple buffers included in one.
 		bd.size =
 			AlignTo(vertex_positions.size() * position_stride, alignment) + // position will be first to have 0 offset for flexible alignment!
 			AlignTo(indices.size() * GetIndexStride(), alignment) +
