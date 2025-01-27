@@ -9,6 +9,27 @@ class MyRender3D : public wi::RenderPath3D
 public:
     MyRender3D()
     {
+		// In an Entity-Component-System (ECS) architecture, entities and components are fundamental concepts:
+		// 
+		// Entity:
+		// An entity is a general-purpose object that represents a unique identifier. It does not contain any data or behavior by itself.
+		// Instead, it acts as an identifier for components. Entities are often implemented as simple integer IDs.
+		// In the context of a game, an entity could represent a player, an enemy, a projectile, or any other object in the game world.
+		// 
+		// Component:
+		// A component is a modular piece of data that can be attached to an entity. Each component typically contains specific data
+		// related to a particular aspect of the entity, such as its position, velocity, health, or appearance. Usually, components
+		// do not contain behavior (methods) and are implemented as plain data structures (structs or classes with only data members).
+		// By attaching different combinations of components to entities, you can create complex behaviors and characteristics.
+		// However, components can contain methods that set or initialize their data, but these methods should not contain complex logic.
+		// 
+		// System:
+		// A system is responsible for processing entities that have a specific set of components. Systems contain the logic and behavior
+		// that operate on the data contained in components. For example, a physics system might update the positions of all entities
+		// that have both position and velocity components, while a rendering system might draw all entities that have a mesh component.
+		// 
+		// In summary, ECS is a design pattern that promotes separation of concerns by dividing data (components) and behavior (systems),
+		// with entities acting as unique identifiers that group related components together.
         wi::scene::Scene& scene = wi::scene::GetScene();
 
         auto materialEntity = scene.Entity_CreateMaterial("default");
@@ -32,26 +53,19 @@ public:
         meshTriangle.indices[1] = 2;
         meshTriangle.indices[2] = 1;
         meshTriangle.vertex_positions.resize(3);
-        meshTriangle.vertex_positions[0] = XMFLOAT3(-1.0f, -0.5f, 2.0f);
-        meshTriangle.vertex_positions[1] = XMFLOAT3(1.0f, -0.5f, 2.0f);
-        meshTriangle.vertex_positions[2] = XMFLOAT3(0.0f, 1.0f, 2.0f);
+        meshTriangle.vertex_positions[0] = XMFLOAT3(-1.0f, -0.5f, 0.0f);
+        meshTriangle.vertex_positions[1] = XMFLOAT3(1.0f, -0.5f, 0.0f);
+        meshTriangle.vertex_positions[2] = XMFLOAT3(0.0f, 1.0f, 0.0f);
         meshTriangle.vertex_colors.resize(3);
-
-        const XMFLOAT4 red = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-        const XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-        const XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
-        uint32_t rgbaRed = wi::math::CompressColor(red);
-        uint32_t rgbaGreen = wi::math::CompressColor(green);
-        uint32_t rgbaBlue = wi::math::CompressColor(blue);
-        meshTriangle.vertex_colors[0] = rgbaRed;
-        meshTriangle.vertex_colors[1] = rgbaGreen;
-        meshTriangle.vertex_colors[2] = rgbaBlue;
+        meshTriangle.vertex_colors[0] = wi::math::CompressColor(XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f));  // rgba Red;
+        meshTriangle.vertex_colors[1] = wi::math::CompressColor(XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));  // rgba Green;
+        meshTriangle.vertex_colors[2] = wi::math::CompressColor(XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f));  // rgba Blue;
 
         meshTriangle.CreateRenderData();
 
         scene.transforms.Create(triangleMeshEntity);
         auto meshtrans = scene.transforms.GetComponent(triangleMeshEntity);
-        meshtrans->Translate(XMFLOAT3(0, -0.2f, 0));
+        meshtrans->Translate(XMFLOAT3(0.0f, -0.2f, 2.0f));
         meshtrans->Scale(XMFLOAT3(1, 1, 1));
     }
 
