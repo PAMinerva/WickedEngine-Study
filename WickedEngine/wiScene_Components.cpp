@@ -743,7 +743,7 @@ namespace wi::scene
 				Vertex_POS16 v;
 				v.FromFULL(aabb, pos, wind);
 				XMFLOAT3 p = v.GetPOS(aabb);
-				if ( // check if the 32 bit to 16 bit conversion and vice versa is lossless
+				if ( // check if the float 32 bit to unotm 16 bit conversion and vice versa is lossless
 					std::abs(p.x - pos.x) <= target_precision &&
 					std::abs(p.y - pos.y) <= target_precision &&
 					std::abs(p.z - pos.z) <= target_precision &&
