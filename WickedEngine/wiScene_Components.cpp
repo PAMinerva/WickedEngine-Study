@@ -742,12 +742,12 @@ namespace wi::scene
 			for (size_t i = 0; i < vertex_positions.size(); ++i)
 			{
 				const XMFLOAT3& pos = vertex_positions[i];
-				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i];
+				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i]; // only relevant if you want the wind affects vertex position
 				
 				Vertex_POS16 v;
 				v.FromFULL(aabb, pos, wind);
 				XMFLOAT3 p = v.GetPOS(aabb);
-				if (
+				if ( // check if the 32 bit to 16 bit conversion and vice versa is lossless
 					std::abs(p.x - pos.x) <= target_precision &&
 					std::abs(p.y - pos.y) <= target_precision &&
 					std::abs(p.z - pos.z) <= target_precision &&
