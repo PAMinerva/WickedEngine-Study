@@ -997,7 +997,7 @@ namespace wi::scene
 					const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i];
 					Vertex_POS16 vert;
 					vert.FromFULL(aabb, pos, wind);
-					std::memcpy(vertices + i, &vert, sizeof(vert));
+					std::memcpy(vertices + i, &vert, sizeof(vert)); // copy vertex data to buffer
 				}
 			}
 			break;
@@ -1045,7 +1045,7 @@ namespace wi::scene
 				ib.size = indices.size() * sizeof(uint32_t);
 				uint32_t* indexdata = (uint32_t*)(buffer_data + buffer_offset);
 				buffer_offset += AlignTo(ib.size, alignment);
-				std::memcpy(indexdata, indices.data(), ib.size);
+				std::memcpy(indexdata, indices.data(), ib.size); // copy index data to buffer
 			}
 			else
 			{
@@ -1310,7 +1310,7 @@ namespace wi::scene
 		else
 		{
 			// If suballocation was not successful, a standalone buffer can be created instead:
-			bool success = device->CreateBuffer2(&bd, init_callback, &generalBuffer);
+			bool success = device->CreateBuffer2(&bd, init_callback, &generalBuffer); // create buffer with vertex and index data
 			assert(success);
 			device->SetName(&generalBuffer, "MeshComponent::generalBuffer");
 		}
