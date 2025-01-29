@@ -152,6 +152,11 @@ namespace wi::shadercompiler
 		if (has_flag(input.flags, Flags::DISABLE_OPTIMIZATION))
 		{
 			args.push_back(L"-Od"); // Optimization Level 0: Disables optimizations
+
+			// Additional options to include debug info in compiled shaders
+			// Required to debug shaders using PIX or RenderDoc
+			args.push_back(L"-Zi");
+			args.push_back(L"-Qembed_debug");
 		}
 
 		switch (input.format)
