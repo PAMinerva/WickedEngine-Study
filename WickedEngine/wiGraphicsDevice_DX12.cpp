@@ -3459,14 +3459,15 @@ std::mutex queue_locker;
 			}
 			else
 			{
-				cmd = copyAllocator.allocate(desc->size);
-				mapped_data = cmd.uploadbuffer.mapped_data;
+				cmd = copyAllocator.allocate(desc->size);   // allocate a staging buffer or reuse existing one in freelist if available
+				mapped_data = cmd.uploadbuffer.mapped_data; // pointer to the staging buffer just allocated
 			}
 
-			init_callback(mapped_data);
+			init_callback(mapped_data); // copy vertex and index data to mapped memory
 
 			if (cmd.IsValid())
 			{
+				// Copy staging buffer to GPU buffer
 				cmd.commandList->CopyBufferRegion(
 					internal_state->resource.Get(),
 					0,
@@ -5047,20 +5048,20 @@ std::mutex queue_locker;
 				uint32_t stride = GetFormatStride(format);
 				srv_desc.Format = _ConvertFormat(format);
 				srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-				srv_desc.Buffer.FirstElement = UINT(offset / stride);
+				srv_desc.Buffer.FirstElement = UINT(offset / stride); // Treated as if it were an index buffer only, we need to skip the first fake indices to get the actual first one
 				srv_desc.Buffer.NumElements = UINT(std::min(size, desc.size - offset) / stride);
 			}
 
 			SingleDescriptor descriptor;
-			descriptor.init(this, srv_desc, internal_state->resource.Get());
+			descriptor.init(this, srv_desc, internal_state->resource.Get()); // create a heap and a descriptor in it for the resource
 
 			if (!internal_state->srv.IsValid())
 			{
-				internal_state->srv = descriptor;
+				internal_state->srv = descriptor; // for bindless resources, this will also contain the descriptor index
 				return -1;
 			}
 			internal_state->subresources_srv.push_back(descriptor);
-			return int(internal_state->subresources_srv.size() - 1);
+			return int(internal_state->subresources_srv.size() - 1); // return the index of the descriptor in the subresources_srv array
 		}
 		break;
 		case SubresourceType::UAV:
