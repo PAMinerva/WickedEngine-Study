@@ -95,7 +95,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	Sample sample;  // Sample class instance (see Sample contructor)
 
 	application.Initialize(); // Initializes the job system to execute the initialization of application components
-    application.ActivatePath(sample.GetRenderPath3D());
+	application.ActivatePath(sample.GetRenderPath3D()); // simply store the canvas to the RenderPath object in the Sample class
 
 
  	MSG msg = { 0 };
