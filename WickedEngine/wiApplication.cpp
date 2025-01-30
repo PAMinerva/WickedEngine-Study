@@ -64,7 +64,7 @@ namespace wi
 	{
 		if (component != nullptr)
 		{
-			component->init(canvas);
+			component->init(canvas); // store canvas in RenderPath object
 		}
 
 		// Fade manager will activate on fadeout
