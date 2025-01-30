@@ -92,7 +92,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     application.infoDisplay.colorspace = true;
     application.infoDisplay.device_name = true;
 
-	Sample sample;  // Sample class instance
+	Sample sample;  // Sample class instance (see Sample contructor)
 
 	application.Initialize(); // Initializes the job system to execute the initialization of application components
     application.ActivatePath(sample.GetRenderPath3D());
