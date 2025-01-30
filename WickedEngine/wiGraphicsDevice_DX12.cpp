@@ -5103,12 +5103,16 @@ std::mutex queue_locker;
 				srv_desc.Buffer.NumElements = UINT(std::min(size, desc.size - offset) / stride);
 			}
 
+			// Create a heap and a descriptor in it for the resource.
+			// If bindless resources are used, the descriptor is also copied to the heap dedicated for bindless resources.
+			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
+			// or the descriptor index in the bindless heap if bindless resources are used.
 			SingleDescriptor descriptor;
-			descriptor.init(this, srv_desc, internal_state->resource.Get()); // create a heap and a descriptor in it for the resource
+			descriptor.init(this, srv_desc, internal_state->resource.Get());
 
 			if (!internal_state->srv.IsValid())
 			{
-				internal_state->srv = descriptor; // for bindless resources, this will also contain the descriptor index
+				internal_state->srv = descriptor; // for bindless resources, this will also contain the descriptor index in the heap for bindless resources
 				return -1;
 			}
 			internal_state->subresources_srv.push_back(descriptor);
