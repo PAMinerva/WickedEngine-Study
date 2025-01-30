@@ -61,6 +61,9 @@ public:
         meshTriangle.vertex_colors[1] = wi::math::CompressColor(XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));  // rgba Green;
         meshTriangle.vertex_colors[2] = wi::math::CompressColor(XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f));  // rgba Blue;
 
+		// Create vertex and index buffers in a single general buffer accessible by the GPU.
+		// Also create an SRV for each buffer type (indices, positions, colors, etc) in the general buffer
+		// and put them into a heap (bindless if slots are available) for shader access.
         meshTriangle.CreateRenderData();
 
         scene.transforms.Create(triangleMeshEntity);
