@@ -64,6 +64,7 @@ namespace wi::scene
 		//	- or by calling SetDirty() and letting the TransformUpdateSystem handle the updating
 		XMFLOAT4X4 world = wi::math::IDENTITY_MATRIX;
 
+		// Indicate that the local to world matrix needs to be recomputed.
 		constexpr void SetDirty(bool value = true) { if (value) { _flags |= DIRTY; } else { _flags &= ~DIRTY; } }
 		constexpr bool IsDirty() const { return _flags & DIRTY; }
 
