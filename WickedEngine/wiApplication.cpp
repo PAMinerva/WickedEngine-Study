@@ -105,7 +105,7 @@ namespace wi
 			EnsureRenderTargetValid();
 			CommandList cmd = graphicsDevice->BeginCommandList();
 			graphicsDevice->RenderPassBegin(&rendertarget, cmd, true);
-			Viewport viewport;
+			Viewport viewport; // Set the viewport rectangle to the full backbuffer area
 			viewport.width = (float)swapChain.desc.width;
 			viewport.height = (float)swapChain.desc.height;
 			graphicsDevice->BindViewports(1, &viewport, cmd);
