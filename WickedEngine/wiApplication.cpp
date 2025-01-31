@@ -139,7 +139,7 @@ namespace wi
 			{
 				graphicsDevice->RenderPassBegin(&swapChain, cmd);
 			}
-			Viewport viewport;
+			Viewport viewport; // Set the viewport rectangle to the full backbuffer area
 			viewport.width = (float)swapChain.desc.width;
 			viewport.height = (float)swapChain.desc.height;
 			graphicsDevice->BindViewports(1, &viewport, cmd);

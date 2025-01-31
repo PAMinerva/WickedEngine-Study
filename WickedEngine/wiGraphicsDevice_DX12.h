@@ -156,6 +156,8 @@ namespace wi::graphics
 			semaphore_pool.push_back(semaphore);
 		}
 
+		// Command list context:
+		// allocators, lists, and other state that is needed to record commands
 		struct CommandList_DX12
 		{
 			Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocators[BUFFERCOUNT][QUEUE_COUNT];

@@ -5307,7 +5307,7 @@ std::mutex queue_locker;
 			commandlists.push_back(std::make_unique<CommandList_DX12>());
 		}
 		CommandList cmd;
-		cmd.internal_state = commandlists[cmd_current].get();
+		cmd.internal_state = commandlists[cmd_current].get(); // store the command list context to be accessible later outside of this function
 		cmd_locker.unlock();
 
 		CommandList_DX12& commandlist = GetCommandList(cmd);
@@ -5318,7 +5318,7 @@ std::mutex queue_locker;
 		if (commandlist.GetCommandList() == nullptr)
 		{
 			// need to create one more command list:
-
+			// one command allocator per frame
 			for (uint32_t buffer = 0; buffer < BUFFERCOUNT; ++buffer)
 			{
 				dx12_check(device->CreateCommandAllocator(queues[queue].desc.Type, PPV_ARGS(commandlist.commandAllocators[buffer][queue])));
@@ -5355,13 +5355,14 @@ std::mutex queue_locker;
 #else
 				hr = dx12_check(device->CreateCommandList1(0, queues[queue].desc.Type, D3D12_COMMAND_LIST_FLAG_NONE, PPV_ARGS(graphicsCommandList)));
 #endif // PLATFORM_XBOX
+				// one command list per queue type is enough for all frames since memory where commands are recorded is managed by command allocators
 				commandlist.commandLists[queue] = graphicsCommandList;
 			}
 
 			std::wstring ws = L"cmd" + std::to_wstring(commandlist.id);
 			commandlist.GetCommandList()->SetName(ws.c_str());
 
-			commandlist.binder.init(this);
+			commandlist.binder.init(this); // only save the device pointer internally to the binder object
 		}
 
 		// Start the command list in a default state:
@@ -5378,6 +5379,7 @@ std::mutex queue_locker;
 
 		if (queue == QUEUE_GRAPHICS || queue == QUEUE_COMPUTE)
 		{
+			// Set the descriptor heaps bound to the command list
 			ID3D12DescriptorHeap* heaps[] = {
 				descriptorheap_res.heap_GPU.Get(),
 				descriptorheap_sam.heap_GPU.Get()
@@ -5390,6 +5392,7 @@ std::mutex queue_locker;
 			D3D12_RECT pRects[D3D12_VIEWPORT_AND_SCISSORRECT_MAX_INDEX + 1];
 			for (uint32_t i = 0; i < arraysize(pRects); ++i)
 			{
+				// Set the default scissor rectangle large enough so that no pixel is discarded
 				pRects[i].left = 0;
 				pRects[i].right = 16384;
 				pRects[i].top = 0;
@@ -6028,12 +6031,13 @@ std::mutex queue_locker;
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const SwapChain* swapchain, CommandList cmd)
 	{
-		CommandList_DX12& commandlist = GetCommandList(cmd);
+		CommandList_DX12& commandlist = GetCommandList(cmd); // retrieve CommandList_DX12 from CommandList internal state 
 		commandlist.renderpass_barriers_begin.clear();
 		commandlist.renderpass_barriers_end.clear();
 		commandlist.swapchains.push_back(swapchain);
-		auto internal_state = to_internal(swapchain);
+		auto internal_state = to_internal(swapchain);        // retrieve SwapChain_DX12 from SwapChain internal state
 
+		// Register a barrier to transition the current back buffer to a render target
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		barrier.Transition.pResource = internal_state->backBuffers[internal_state->GetBufferIndex()].Get();
@@ -6043,6 +6047,8 @@ std::mutex queue_locker;
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		commandlist.GetGraphicsCommandList()->ResourceBarrier(1, &barrier);
 
+		// Store a barrier in the renderpass_barriers_end array to transition the current back buffer back to present after rendering
+		// This will be registered in the command list in the RenderPassEnd function
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		commandlist.renderpass_barriers_end.push_back(barrier);
@@ -6061,6 +6067,7 @@ std::mutex queue_locker;
 			nullptr
 		);
 #else
+		// Retrieve the render target for the current back buffer and set the clear color
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC RTV = {};
 		RTV.cpuDescriptor = internal_state->backbufferRTV[internal_state->GetBufferIndex()];
 		RTV.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -6069,9 +6076,17 @@ std::mutex queue_locker;
 		RTV.BeginningAccess.Clear.ClearValue.Color[2] = swapchain->desc.clear_color[2];
 		RTV.BeginningAccess.Clear.ClearValue.Color[3] = swapchain->desc.clear_color[3];
 		RTV.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+
+		// Marks the beginning of a render pass by binding a set of output resources for the duration of the render pass:
+		// One or more RTVs (render target views), as well as their beginning and ending access characteristics (including the clear values).
+		// An optional depth/stencil buffer view (DSV), as well as its beginning and ending access characteristics (including the clear value).
+		// The last argument is a flag that specifies the nature/requirements of the render pass. For example, whether it is a suspending or a
+		// resuming render pass, or whether it wants to write to unordered access view(s).
+		// D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES indicates that writes to unordered access view(s) should be allowed during the render pass.
 		commandlist.GetGraphicsCommandListLatest()->BeginRenderPass(1, &RTV, nullptr, D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES);
 #endif // DISABLE_RENDERPASS
 
+		// Only retrieve and save the swapchain format in the command list for later use
 		commandlist.renderpass_info = RenderPassInfo::from(swapchain->desc);
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const RenderPassImage* images, uint32_t image_count, CommandList cmd, RenderPassFlags flags)
