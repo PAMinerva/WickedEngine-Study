@@ -571,7 +571,7 @@ namespace wi::font
 		}
 		ParseStatus status = ParseText(text, text_length, params);
 
-		// quadCount is the number of quads, each containing a text character to be rendered
+		// quadCount is the number of quads, each wrapped by a texture representing a text character
 		if (status.quadCount > 0)
 		{
 			GraphicsDevice* device = wi::graphics::GetDevice();
