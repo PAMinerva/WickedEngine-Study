@@ -135,6 +135,7 @@ namespace wi
 			{
 				graphicsDevice->RenderPassBegin(&swapChain, cmd);
 			}
+			// Set the viewport rectangle to the full backbuffer area
 			Viewport viewport;
 			viewport.width = (float)swapChain.desc.width;
 			viewport.height = (float)swapChain.desc.height;
