@@ -118,6 +118,8 @@ namespace wi::graphics
 
 		Microsoft::WRL::ComPtr<ID3D12Fence> frame_fence[BUFFERCOUNT][QUEUE_COUNT];
 
+		// Associate resources to binding slots (table member)
+		// and shader registers to root parameters (optimizer_graphics member)
 		struct DescriptorBinder
 		{
 			DescriptorBindingTable table;

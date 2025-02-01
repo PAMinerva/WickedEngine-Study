@@ -585,13 +585,15 @@ namespace wi::font
 			GraphicsDevice::GPUAllocation mem = device->AllocateGPU(sizeof(FontVertex) * status.quadCount * 4, cmd);
 			if (!mem.IsValid())
 			{
+				// Returning the current cursor, the next time the function is called, we can
+				// continue rendering the text from where it was interrupted.
 				return status.cursor;
 			}
 			CommitText(mem.data); // copy the vertex data to the upload memory
 
 			FontConstants font = {};
-			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV in the heap
-			font.buffer_offset = (uint32_t)mem.offset;
+			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV (describing the vertex buffer) in the heap
+			font.buffer_offset = (uint32_t)mem.offset; // offset of the vertex buffer
 			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV);
 			if (font.buffer_index < 0 || font.texture_index < 0) // does it support bindless only?
 			{
@@ -689,8 +691,13 @@ namespace wi::font
 			softness = params.softness * 0.5f;
 			font.softness_bolden_hdrscaling = pack_half3(softness, bolden, hdr_scaling);
 			font.softness_bolden_hdrscaling.y |= flags << 16u;
+			// The font constants will be loaded in the same buffer containing the vertex buffer.
+			// The binder of the command list will be used to store a reference to this buffer
+			// and the offset to the font constants (which are located after the vertex buffer).
+			// In the binder the related root parameter will be marked as dirty.
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
+			// Register the draw call even if the PSO has not been created or bound yet
 			device->DrawInstanced(4, status.quadCount, 0, 0, cmd);
 
 			device->EventEnd(cmd);
