@@ -6056,7 +6056,7 @@ std::mutex queue_locker;
 		commandlist.GetGraphicsCommandListLatest()->BeginRenderPass(1, &RTV, nullptr, D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES);
 #endif // DISABLE_RENDERPASS
 
-		// Only retrieve and save the swapchain format in the command list for later use
+		// Only retrieve and save the swapchain format in the command list for later use (see BindPipelineState below)
 		commandlist.renderpass_info = RenderPassInfo::from(swapchain->desc);
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const RenderPassImage* images, uint32_t image_count, CommandList cmd, RenderPassFlags flags)
@@ -6672,6 +6672,7 @@ std::mutex queue_locker;
 				const RootSignatureOptimizer& optimizer = *(RootSignatureOptimizer*)binder.optimizer_graphics;
 				if (optimizer.CBV[slot] != RootSignatureOptimizer::INVALID_ROOT_PARAMETER)
 				{
+					// Mark the root parameter as dirty
 					binder.dirty_graphics |= 1ull << optimizer.CBV[slot];
 				}
 			}
@@ -6777,7 +6778,7 @@ std::mutex queue_locker;
 			commandlist.prev_pipeline_hash = {};
 			commandlist.dirty_pso = false;
 		}
-		else
+		else // if the pso has not been created yet, we set it as dirty and associate an hash to it in ther command list
 		{
 			PipelineHash pipeline_hash;
 			pipeline_hash.pso = pso;
@@ -6790,13 +6791,14 @@ std::mutex queue_locker;
 			commandlist.dirty_pso = true;
 		}
 
+		// retrieve the root signature from the PSO and bind it if it differs from the currently bound one
 		if (commandlist.active_rootsig_graphics != internal_state->rootSignature.Get())
 		{
 			commandlist.active_rootsig_graphics = internal_state->rootSignature.Get();
 			commandlist.GetGraphicsCommandList()->SetGraphicsRootSignature(internal_state->rootSignature.Get());
 
 			auto& binder = commandlist.binder;
-			binder.optimizer_graphics = &internal_state->rootsig_optimizer;
+			binder.optimizer_graphics = &internal_state->rootsig_optimizer; // rootsig_optimizer maps shader registers with root parameters
 			binder.dirty_graphics = internal_state->rootsig_optimizer.root_mask; // invalidates all root bindings
 		}
 
