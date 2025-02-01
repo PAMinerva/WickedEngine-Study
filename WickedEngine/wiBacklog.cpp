@@ -337,6 +337,8 @@ namespace wi::backlog
 				params.color = font_params.color;
 				break;
 			}
+			// cursor is updated by the Draw function to keep track of the last position of the text
+			// so that we can scroll to bottom when new text is processed
 			params.cursor = wi::font::Draw(x.text, params, cmd);
 		}
 
