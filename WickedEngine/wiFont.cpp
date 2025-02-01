@@ -154,6 +154,7 @@ namespace wi::font
 				}
 			};
 
+			// update the height of the cursor size to include the next line of text
 			status.cursor.size.y = status.cursor.position.y + linebreak_size;
 			for (size_t i = 0; i < text_length; ++i)
 			{
@@ -176,7 +177,7 @@ namespace wi::font
 				{
 					word_wrap();
 					status.cursor.position.x = 0;
-					status.cursor.position.y += linebreak_size;
+					status.cursor.position.y += linebreak_size; // \n can be in the middle of a line, so we need to add the linebreak size here
 				}
 				else if (code == ' ')
 				{
@@ -210,6 +211,7 @@ namespace wi::font
 					}
 					status.start_new_word = false;
 
+					// use the cursor (position of the prev character) as the baseline to position the quad of the current character
 					const float left = status.cursor.position.x + glyphOffsetX;
 					const float right = left + glyphWidth;
 					const float top = status.cursor.position.y + glyphOffsetY;
@@ -575,23 +577,28 @@ namespace wi::font
 		if (status.quadCount > 0)
 		{
 			GraphicsDevice* device = wi::graphics::GetDevice();
+			// Allocate enough upload memory to store the vertex buffer with all the vertices composing the quads.
+			// A buffer reference can be retrieved from the internal state of the command list associated with the current frame.
+			// Also create an SRV (to this buffer) and write it to an appropriate heap (bindless if slots are available).
+			// Remember that the index of the descriptor (in the bindless heap or in the subresources_srv array) can be
+			// retrieved from the internal state of the buffer.
 			GraphicsDevice::GPUAllocation mem = device->AllocateGPU(sizeof(FontVertex) * status.quadCount * 4, cmd);
 			if (!mem.IsValid())
 			{
 				return status.cursor;
 			}
-			CommitText(mem.data);
+			CommitText(mem.data); // copy the vertex data to the upload memory
 
 			FontConstants font = {};
-			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV);
+			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV in the heap
 			font.buffer_offset = (uint32_t)mem.offset;
 			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV);
-			if (font.buffer_index < 0 || font.texture_index < 0)
+			if (font.buffer_index < 0 || font.texture_index < 0) // does it support bindless only?
 			{
 				return status.cursor;
 			}
 
-			device->EventBegin("Font", cmd);
+			device->EventBegin("Font", cmd); // Starts a user-defined event for a timing capture of CPU activity, to be displayed in PIX
 
 			device->BindPipelineState(&PSO[params.isDepthTestEnabled()], cmd);
 
