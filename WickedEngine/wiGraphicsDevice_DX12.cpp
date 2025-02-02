@@ -6810,7 +6810,7 @@ std::mutex queue_locker;
 			commandlist.prev_pipeline_hash = {};
 			commandlist.dirty_pso = false;
 		}
-		else // if the pso has not been created yet, we set it as dirty and associate an hash to it in ther command list
+		else // if the pso has not been created yet, we set it as dirty and associate an hash to it in the command list
 		{
 			PipelineHash pipeline_hash;
 			pipeline_hash.pso = pso;
