@@ -602,7 +602,8 @@ namespace wi::font
 
 			device->EventBegin("Font", cmd); // Starts a user-defined event for a timing capture of CPU activity, to be displayed in PIX
 
-			// If the PSO is not created yet, set it dirty in the command list so that it can be created before the actual draw call.
+			// If the PSO has not been created yet, save the PipelineState passed as first param as the active PSO in the command list and
+			// set it dirty so that it can be created before the actual draw call.
 			// It also set the root signature and invalidates all root bindings if necessary.
 			device->BindPipelineState(&PSO[params.isDepthTestEnabled()], cmd);
 
@@ -699,7 +700,7 @@ namespace wi::font
 			// In the binder the related root parameter will be marked as dirty.
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
-			// Check if the PSO needs to be created before invoking the actual draw call
+			// Check if the PSO needs to be created and set before invoking the actual draw call.
 			// Use instanced rendering to draw the four vertices of a quad quadCount times
 			// The vertex data will be retrieved in the VS from the bindless_buffers array
 			// and the FontConstants data specified above, see fontVS.hlsl and globals.hlsli
