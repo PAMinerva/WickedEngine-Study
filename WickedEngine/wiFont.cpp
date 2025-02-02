@@ -602,6 +602,8 @@ namespace wi::font
 
 			device->EventBegin("Font", cmd); // Starts a user-defined event for a timing capture of CPU activity, to be displayed in PIX
 
+			// If the PSO is not created yet, set it dirty in the command list so that it can be created before the actual draw call.
+			// It also set the root signature and invalidates all root bindings if necessary.
 			device->BindPipelineState(&PSO[params.isDepthTestEnabled()], cmd);
 
 			using namespace wi::math;
@@ -697,7 +699,7 @@ namespace wi::font
 			// In the binder the related root parameter will be marked as dirty.
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
-			// Register the draw call even if the PSO has not been created or bound yet
+			// Check if the PSO needs to be created before invoking the actual draw call
 			device->DrawInstanced(4, status.quadCount, 0, 0, cmd);
 
 			device->EventEnd(cmd);
