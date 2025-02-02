@@ -700,6 +700,9 @@ namespace wi::font
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
 			// Check if the PSO needs to be created before invoking the actual draw call
+			// Use instanced rendering to draw the four vertices of a quad quadCount times
+			// The vertex data will be retrieved in the VS from the bindless_buffers array
+			// and the FontConstants data specified above, see fontVS.hlsl and globals.hlsli
 			device->DrawInstanced(4, status.quadCount, 0, 0, cmd);
 
 			device->EventEnd(cmd);
