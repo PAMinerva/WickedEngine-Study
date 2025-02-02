@@ -2102,8 +2102,8 @@ std::mutex queue_locker;
 		if (!commandlist.dirty_pso)
 			return;
 
-		const PipelineState* pso = commandlist.active_pso;
-		PipelineHash pipeline_hash = commandlist.prev_pipeline_hash;
+		const PipelineState* pso = commandlist.active_pso; // retrieve the active pipeline state
+		PipelineHash pipeline_hash = commandlist.prev_pipeline_hash; // retrieve the pipeline hash
 
 		auto internal_state = to_internal(pso);
 
