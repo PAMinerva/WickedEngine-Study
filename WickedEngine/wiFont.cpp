@@ -602,8 +602,8 @@ namespace wi::font
 
 			device->EventBegin("Font", cmd); // Starts a user-defined event for a timing capture of CPU activity, to be displayed in PIX
 
-			// If the PSO has not been created yet, save the PipelineState passed as first param as the active PSO in the command list and
-			// set it dirty so that it can be created before the actual draw call.
+			// If the PSO has not been created yet, save the PipelineState passed as first param as the active one in the command list and
+			// set it dirty so that a PSO based on it can be created before the actual draw call.
 			// It also set the root signature and invalidates all root bindings if necessary.
 			device->BindPipelineState(&PSO[params.isDepthTestEnabled()], cmd);
 
