@@ -2102,7 +2102,7 @@ std::mutex queue_locker;
 		if (!commandlist.dirty_pso)
 			return;
 
-		const PipelineState* pso = commandlist.active_pso; // retrieve the active pipeline state
+		const PipelineState* pso = commandlist.active_pso; // retrieve the active PipelineState
 		PipelineHash pipeline_hash = commandlist.prev_pipeline_hash; // retrieve the pipeline hash
 
 		auto internal_state = to_internal(pso);
@@ -2127,7 +2127,7 @@ std::mutex queue_locker;
 
 				DXGI_FORMAT DSFormat = _ConvertFormat(commandlist.renderpass_info.ds_format);
 				D3D12_RT_FORMAT_ARRAY formats = {};
-				formats.NumRenderTargets = commandlist.renderpass_info.rt_count;
+				formats.NumRenderTargets = commandlist.renderpass_info.rt_count; // see RenderPassBegin below
 				for (uint32_t i = 0; i < commandlist.renderpass_info.rt_count; ++i)
 				{
 					formats.RTFormats[i] = _ConvertFormat(commandlist.renderpass_info.rt_formats[i]);
@@ -2148,9 +2148,10 @@ std::mutex queue_locker;
 					streamDesc.SizeInBytes += sizeof(stream.stream2);
 				}
 
-				ComPtr<ID3D12PipelineState> newpso;
+				ComPtr<ID3D12PipelineState> newpso; // create a new PSO from the stream
 				dx12_check(device->CreatePipelineState(&streamDesc, PPV_ARGS(newpso)));
 
+				// Save the PSO just created in the context of the command list to retrieve it later if needed
 				commandlist.pipelines_worker.push_back(std::make_pair(pipeline_hash, newpso));
 				pipeline = newpso.Get();
 			}
@@ -2161,9 +2162,11 @@ std::mutex queue_locker;
 		}
 		assert(pipeline != nullptr);
 
+		// Set the pipeline state object and reset the dirty flag
 		commandlist.GetGraphicsCommandList()->SetPipelineState(pipeline);
 		commandlist.dirty_pso = false;
 
+		// Set the primitive topology if uninitialized or changed
 		if (commandlist.prev_pt != internal_state->primitiveTopology)
 		{
 			commandlist.prev_pt = internal_state->primitiveTopology;
@@ -5995,7 +5998,8 @@ std::mutex queue_locker;
 		commandlist.GetGraphicsCommandListLatest()->BeginRenderPass(1, &RTV, nullptr, D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES);
 #endif // PLATFORM_XBOX
 
-		// Only retrieve and save the swapchain format in the command list for later use (see BindPipelineState below)
+		// Only retrieve the swapchain format and save it in the command list for later use (see BindPipelineState below)
+		// Set rt_count to 1 because, usually, there is only one render target (the back buffer)
 		commandlist.renderpass_info = RenderPassInfo::from(swapchain->desc);
 	}
 	void GraphicsDevice_DX12::RenderPassBegin(const RenderPassImage* images, uint32_t image_count, CommandList cmd, RenderPassFlags flags)
