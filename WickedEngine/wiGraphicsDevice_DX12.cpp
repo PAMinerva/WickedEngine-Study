@@ -1766,7 +1766,7 @@ std::mutex queue_locker;
 	void GraphicsDevice_DX12::DescriptorBinder::flush(bool graphics, CommandList cmd)
 	{
 		uint64_t& dirty = graphics ? dirty_graphics : dirty_compute;
-		if (dirty == 0ull)
+		if (dirty == 0ull) // see the Bind* functions below, if nothing is bound, then there are no bits set in the dirty mask
 			return;
 
 		CommandList_DX12& commandlist = device->GetCommandList(cmd);
@@ -1774,11 +1774,13 @@ std::mutex queue_locker;
 		auto pso_internal = graphics ? to_internal(commandlist.active_pso) : to_internal(commandlist.active_cs);
 		const RootSignatureOptimizer& optimizer = pso_internal->rootsig_optimizer;
 
+		// _BitScanReverse64 search the mask data from most significant bit (MSB) to least significant bit (LSB) for a set bit (1).
+		// For example, if dirty = 1100b, then index = 3 because the MSB set to 1 is the 4th from the right.
 		DWORD index;
 		while (_BitScanReverse64(&index, dirty)) // This will make sure that only the dirty root params are iterated, bit-by-bit
 		{
-			const UINT root_parameter_index = (UINT)index;
-			dirty ^= 1ull << root_parameter_index; // remove dirty bit of this root parameter
+			const UINT root_parameter_index = (UINT)index; // retrieve the index of the root parameter that is marked as dirty
+			dirty ^= 1ull << root_parameter_index; // remove dirty bit of this root parameter: bitwise XOR (a^b=1 if a!=b, a^b=0 if a==b, with a and b bits)
 			const D3D12_ROOT_PARAMETER1& param = pso_internal->rootsig_desc->Desc_1_1.pParameters[root_parameter_index];
 			const RootSignatureOptimizer::RootParameterStatistics& stats = optimizer.root_stats[root_parameter_index];
 
@@ -2180,7 +2182,7 @@ std::mutex queue_locker;
 		pso_validate(cmd);
 
 		CommandList_DX12& commandlist = GetCommandList(cmd);
-		commandlist.binder.flush(true, cmd);
+		commandlist.binder.flush(true, cmd); // set graphics root parameters with the appropriate arguments
 	}
 	void GraphicsDevice_DX12::predispatch(CommandList cmd)
 	{
