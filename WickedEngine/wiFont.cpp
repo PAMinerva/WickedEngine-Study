@@ -695,6 +695,8 @@ namespace wi::font
 			font.softness_bolden_hdrscaling = pack_half3(softness, bolden, hdr_scaling);
 			font.softness_bolden_hdrscaling.y |= flags << 16u;
 			// The font constants will be loaded in the same buffer containing the vertex buffer.
+			// However, the portion of buffer containing these constants will be accessed in the
+			// vertex shader through a constant buffer (slot b0).
 			// The binder of the command list will be used to store a reference to this buffer
 			// and the offset to the font constants (which are located after the vertex buffer).
 			// In the binder the related root parameter will be marked as dirty.
