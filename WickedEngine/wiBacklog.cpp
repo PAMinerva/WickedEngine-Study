@@ -300,6 +300,9 @@ namespace wi::backlog
 		params.cursor = {};
 		if (refitscroll)
 		{
+			// TextHeight calls ParseText, but it is only interested in the height of the cursor size (the vertex buffer creation is performed though).
+			// The cursor size specifies the size of the text from the first character.
+			// So we can calculate the scroll amount based on the height of the text and the one of the canvas.
 			float textheight = wi::font::TextHeight(getText(), params);
 			float limit = canvas.GetLogicalHeight() - 50;
 			if (scroll + textheight > limit)
@@ -309,7 +312,7 @@ namespace wi::backlog
 			refitscroll = false;
 		}
 		params.posX = 5;
-		params.posY = pos + scroll;
+		params.posY = pos + scroll; // posY will be negative if the text is higher than the canvas height; this will allow scrolling the text up
 		params.h_wrap = canvas.GetLogicalWidth() - params.posX;
 		if (colorspace != ColorSpace::SRGB)
 		{
