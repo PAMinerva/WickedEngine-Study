@@ -203,7 +203,7 @@ namespace wi::font
 
 					const size_t vertexID = size_t(status.quadCount) * 4;
 					vertexList.resize(vertexID + 4);
-					status.quadCount++;
+					status.quadCount++; // add a new quad for the current character in the text line
 
 					if (status.start_new_word)
 					{
