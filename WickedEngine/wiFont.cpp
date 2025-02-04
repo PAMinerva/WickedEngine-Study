@@ -571,6 +571,9 @@ namespace wi::font
 		{
 			return Cursor();
 		}
+		// Parse the text line to get the number of quads and the cursor position and size.
+		// The cursor is returned to be used as the starting point for the next text line.
+		// ParseText will also build the vertex buffer for the text line by using the current cursor position.
 		ParseStatus status = ParseText(text, text_length, params);
 
 		// quadCount is the number of quads, each wrapped by a texture representing a text character
