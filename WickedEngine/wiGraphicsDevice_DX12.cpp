@@ -1786,12 +1786,12 @@ std::mutex queue_locker;
 		const RootSignatureOptimizer& optimizer = pso_internal->rootsig_optimizer;
 
 		// _BitScanReverse64 search the mask data from most significant bit (MSB) to least significant bit (LSB) for a set bit (1).
-		// For example, if dirty = 1100b, then index = 3 because the MSB set to 1 is the 4th from the right.
+		// For example, if dirty = 1100b, then index = 3 because the MSB set to 1 is the 4th from the right, which has index 3.
 		DWORD index;
 		while (_BitScanReverse64(&index, dirty)) // This will make sure that only the dirty root params are iterated, bit-by-bit
 		{
 			const UINT root_parameter_index = (UINT)index; // retrieve the index of the root parameter that is marked as dirty
-			dirty ^= 1ull << root_parameter_index; // remove dirty bit of this root parameter: bitwise XOR (a^b=1 if a!=b, a^b=0 if a==b, with a and b bits)
+			dirty ^= 1ull << root_parameter_index; // remove dirty bit for this root parameter: bitwise XOR (a^b=1 if a!=b, a^b=0 if a==b, with a and b bits)
 			const D3D12_ROOT_PARAMETER1& param = pso_internal->rootsig_desc->Desc_1_1.pParameters[root_parameter_index];
 			const RootSignatureOptimizer::RootParameterStatistics& stats = optimizer.root_stats[root_parameter_index];
 
