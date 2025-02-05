@@ -290,6 +290,7 @@ namespace wi::graphics
 
 			GPULinearAllocator& allocator = GetFrameAllocator(cmd);
 
+			// note that allocator store size and offset of the last invocation (see the end of the function)
 			const uint64_t free_space = allocator.buffer.desc.size - allocator.offset;
 			if (dataSize > free_space)
 			{
@@ -298,7 +299,7 @@ namespace wi::graphics
 				desc.bind_flags = BindFlag::CONSTANT_BUFFER | BindFlag::VERTEX_BUFFER | BindFlag::INDEX_BUFFER | BindFlag::SHADER_RESOURCE;
 				desc.misc_flags = ResourceMiscFlag::BUFFER_RAW;
 				allocator.alignment = GetMinOffsetAlignment(&desc);
-				// allocate enough space to possibly create other buffers as well in the same allocation
+				// allocate enough space to possibly create other buffers used in the current frame
 				desc.size = AlignTo((allocator.buffer.desc.size + dataSize) * 2, allocator.alignment);
 				CreateBuffer(&desc, nullptr, &allocator.buffer);
 				SetName(&allocator.buffer, "frame_allocator");
