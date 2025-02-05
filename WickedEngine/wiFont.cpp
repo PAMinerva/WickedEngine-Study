@@ -580,9 +580,11 @@ namespace wi::font
 		if (status.quadCount > 0)
 		{
 			GraphicsDevice* device = wi::graphics::GetDevice();
-			// Allocate enough upload memory to store the vertex buffer with all the vertices composing the quads.
-			// A buffer reference can be retrieved from the internal state of the command list associated with the current frame.
-			// Also create an SRV (to this buffer) and write it to an appropriate heap (bindless if slots are available).
+			// Allocate enough upload memory to store the vertex buffer with all the vertices composing the quads for a text line.
+			// All text lines will be stored in the same buffer, so the allocation needs to be built iteratively (see AllocateGPU).
+			// A reference to the shared buffer containing all text lines can be retrieved from the internal state of the
+			// command list associated with the current frame.
+			// Also create an SRV to shared buffer and write it to an appropriate heap (bindless if slots are available).
 			// Remember that the index of the descriptor (in the bindless heap or in the subresources_srv array) can be
 			// retrieved from the internal state of the buffer.
 			GraphicsDevice::GPUAllocation mem = device->AllocateGPU(sizeof(FontVertex) * status.quadCount * 4, cmd);
@@ -596,7 +598,7 @@ namespace wi::font
 
 			FontConstants font = {};
 			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV (describing the vertex buffer) in the heap
-			font.buffer_offset = (uint32_t)mem.offset; // offset of the vertex buffer
+			font.buffer_offset = (uint32_t)mem.offset; // offset of the vertex buffer portion containing the current text line
 			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV);
 			if (font.buffer_index < 0 || font.texture_index < 0) // does it support bindless only?
 			{
@@ -697,18 +699,18 @@ namespace wi::font
 			softness = params.softness * 0.5f;
 			font.softness_bolden_hdrscaling = pack_half3(softness, bolden, hdr_scaling);
 			font.softness_bolden_hdrscaling.y |= flags << 16u;
-			// The font constants will be loaded in the same buffer containing the vertex buffer.
-			// However, the portion of buffer containing these constants will be accessed in the
+			// The font constants for all text lines will be also loaded in the same buffer containing the vertex buffer with all text lines.
+			// However, the portion of buffer containing the constants for the current text line will be accessed in the
 			// vertex shader through a constant buffer (slot b0).
-			// The binder of the command list will be used to store a reference to this buffer
-			// and the offset to the font constants (which are located after the vertex buffer).
-			// In the binder the related root parameter will be marked as dirty.
+			// The binder of the command list will be updated to store a reference to the buffer containing the font constants for all text lines
+			// and the offset to the font constants for the current text line.
+			// In the binder the related root parameter will be marked as dirty so that we can update the related root argument before the draw call.
 			device->BindDynamicConstantBuffer(font, CBSLOT_FONT, cmd);
 
 			// Check if the PSO needs to be created and set before invoking the actual draw call.
-			// Use instanced rendering to draw the four vertices of a quad quadCount times
+			// Use instanced rendering to draw the four vertices of a quad quadCount times, so that the entire text line is rendered.
 			// The vertex data will be retrieved in the VS from the bindless_buffers array
-			// and the FontConstants data specified above, see fontVS.hlsl and globals.hlsli
+			// and the FontConstants data specified above from the ConstantBuffer font, see fontVS.hlsl, globals.hlsli, ShaderInterop_Font.h and ShaderInterop.h 
 			device->DrawInstanced(4, status.quadCount, 0, 0, cmd);
 
 			device->EventEnd(cmd);
