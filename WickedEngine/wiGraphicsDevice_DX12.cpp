@@ -5134,7 +5134,7 @@ std::mutex queue_locker;
 			// Create a heap and a descriptor in it for the resource.
 			// If bindless resources are used, the descriptor is also copied to the heap dedicated for bindless resources.
 			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
-			// or the descriptor index in the bindless heap if bindless resources are used.
+			// and the descriptor index in the bindless heap if bindless resources are used.
 			SingleDescriptor descriptor;
 			descriptor.init(this, srv_desc, internal_state->resource.Get());
 
@@ -5143,8 +5143,11 @@ std::mutex queue_locker;
 				internal_state->srv = descriptor; // for bindless resources, this will also contain the descriptor index in the heap for bindless resources
 				return -1;
 			}
+			// If internal_state->srv is already valid (that is, if the resource already has a SingleDescriptor associated with it),
+			// then we store the current SingleDescriptor in the subresources_srv array.
+			// This is necessary because ???
 			internal_state->subresources_srv.push_back(descriptor);
-			return int(internal_state->subresources_srv.size() - 1); // return the index of the descriptor in the subresources_srv array
+			return int(internal_state->subresources_srv.size() - 1); // return the index of the SingleDescriptor in the subresources_srv array
 		}
 		break;
 		case SubresourceType::UAV:
