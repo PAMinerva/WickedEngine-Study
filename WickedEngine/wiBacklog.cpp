@@ -298,6 +298,8 @@ namespace wi::backlog
 		wi::font::SetCanvas(canvas); // always set here as it can be called from outside...
 		wi::font::Params params = font_params;
 		params.cursor = {};
+		// refitscroll is set to true when the text is changed (see post method below),
+		// so we can calculate the scroll amount based on the height of the text and the one of the canvas.
 		if (refitscroll)
 		{
 			// TextHeight calls ParseText, but it is only interested in the height of the cursor size (the vertex buffer creation is performed though).
