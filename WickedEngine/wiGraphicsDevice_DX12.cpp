@@ -5058,15 +5058,15 @@ std::mutex queue_locker;
 			}
 
 			// Create a heap and a descriptor in it for the resource.
-			// If bindless resources are used, the descriptor is also copied to the heap dedicated for bindless resources.
+			// If bindless is available, the descriptor is also copied to the global shader visible heap.
 			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
-			// and the descriptor index in the bindless heap if bindless resources are used.
+			// and the descriptor index in the global shader visible heap if bindless is used.
 			SingleDescriptor descriptor;
 			descriptor.init(this, srv_desc, internal_state->resource.Get());
 
 			if (!internal_state->srv.IsValid())
 			{
-				internal_state->srv = descriptor; // for bindless resources, this will also contain the descriptor index in the heap for bindless resources
+				internal_state->srv = descriptor; // for bindless, this will also contain the descriptor index in the global shader visible heap
 				return -1;
 			}
 			// If internal_state->srv is already valid (that is, if the resource already has a SingleDescriptor associated with it),
