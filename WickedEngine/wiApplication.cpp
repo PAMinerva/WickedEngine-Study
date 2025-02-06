@@ -102,6 +102,7 @@ namespace wi
 		if (!wi::initializer::IsInitializeFinished())
 		{
 			// Until engine is not loaded, present initialization screen...
+			// Among other things, this will set the global shader visible heap bounds to the command list
 			EnsureRenderTargetValid();
 			CommandList cmd = graphicsDevice->BeginCommandList();
 			graphicsDevice->RenderPassBegin(&rendertarget, cmd, true);
