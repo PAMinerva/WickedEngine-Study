@@ -1189,7 +1189,7 @@ namespace dx12_internal
 
 			// bindless allocation:
 			allocationhandler->destroylocker.lock();
-			if (!allocationhandler->free_bindless_res.empty())
+			if (!allocationhandler->free_bindless_res.empty()) // see GraphicsDevice_DX12 constructor below
 			{
 				index = allocationhandler->free_bindless_res.back();
 				allocationhandler->free_bindless_res.pop_back();
@@ -1853,7 +1853,8 @@ std::mutex queue_locker;
 					const uint32_t bindless_capacity = stats.sampler_table ? BINDLESS_SAMPLER_CAPACITY : BINDLESS_RESOURCE_CAPACITY;
 
 					//
-					// Skip the first 500k descriptors in the heap to store the descriptor in each range
+					// Skip the first 500k descriptors in the heap (dedicated to SingleDescriptors) to store the descriptors in each range
+					// included in the current descriptor table.
 					//
 					// Remarks:
 					//	This is allocating from the global shader visible descriptor heaps in a simple incrementing
