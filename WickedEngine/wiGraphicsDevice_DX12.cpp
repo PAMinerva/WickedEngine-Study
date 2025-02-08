@@ -1855,6 +1855,9 @@ std::mutex queue_locker;
 					const uint32_t descriptorSize = stats.sampler_table ? device->sampler_descriptor_size : device->resource_descriptor_size;
 					const uint32_t bindless_capacity = stats.sampler_table ? BINDLESS_SAMPLER_CAPACITY : BINDLESS_RESOURCE_CAPACITY;
 
+					//
+					// Skip the first 500k descriptors in the heap to store the descriptor in each range
+					//
 					// Remarks:
 					//	This is allocating from the global shader visible descriptor heaps in a simple incrementing
 					//	lockless ring buffer fashion.
@@ -1884,6 +1887,11 @@ std::mutex queue_locker;
 
 					// Check that gpu offset doesn't intersect with our newly allocated range, if it does, we need to wait until gpu finishes with it:
 					//	First check is with the cached completed value to avoid API call into fence object
+					// See DescriptorHeapGPU::SignalGPU in the header file for more info.
+					// Usually, wrapped_offset should be greater than wrapped_gpu_offset (the end of the GPU range), since wrapped_offset is set CPU side
+					// while wrapped_gpu_offset GPU side. Otherwise, wrapped_offset is wrapped around to zero, and we need to wait until GPU finishes with
+					// the range intersecting with the newly allocated range.
+					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range is in the middle of the GPU one.
 					uint64_t wrapped_gpu_offset = heap.cached_completedValue % wrap_effective_size;
 					if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 					{
@@ -1892,6 +1900,8 @@ std::mutex queue_locker;
 						if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 						{
 							// Third step is actual wait until GPU updates fence so that requested descriptors are free:
+							// Indeed, the range of descriptors we are trying to allocate is available per draw (each draw can allocate its own range
+							// and after the draw is finished, the range is free to be used again), but we need to wait until the GPU finishes with it.
 							dx12_check(heap.fence->SetEventOnCompletion(heap.fenceValue, nullptr));
 						}
 					}
