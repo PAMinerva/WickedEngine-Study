@@ -463,9 +463,13 @@ namespace wi::font
 				glyph.x = float(bitmap.xoff) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
 				// ascent * fontScaling is the offset from the baseline to the top of the glyph,
 				// scaled in pixels based on the font size.
-				// By adding yoff * fontScaling, we get the little offset from the top of the glyph to
+				// By adding ascent * fontScaling to yoff, we get the little offset from the top of the glyph to
 				// the top of the bitmap, misured in pixels with respect to the bitmap space (similar to xoff,
 				// which is the offset from the left of the glyph to the left of the bitmap).
+				// glyph.x is the logical offset from where the glyph start (on the left side) to the
+				// immaginary left corner of the glyph space.
+				// glyph.y is the logical offset from the immaginary top corner of the glyph space
+				// to where the glyph start (on the top side).
 				glyph.y = (float(bitmap.yoff) + float(fontStyle->ascent) * fontScaling) * upscaling_rcp;
 				glyph.width = float(bitmap.width) * upscaling_rcp;   // see PhysicalToLogical in wiCanvas.h
 				glyph.height = float(bitmap.height) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
