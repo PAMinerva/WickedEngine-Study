@@ -5539,6 +5539,8 @@ std::mutex queue_locker;
 			}
 		}
 
+		// Descriptor heaps' progress is recorded by the GPU
+		// See DescriptorBinder::flush function for more details
 		descriptorheap_res.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 		descriptorheap_sam.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 
