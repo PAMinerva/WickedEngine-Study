@@ -5479,6 +5479,8 @@ std::mutex queue_locker;
 			}
 		}
 
+		// Descriptor heaps' progress is recorded by the GPU
+		// See DescriptorBinder::flush function for more details
 		descriptorheap_res.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 		descriptorheap_sam.SignalGPU(queues[QUEUE_GRAPHICS].queue.Get());
 
@@ -5495,9 +5497,10 @@ std::mutex queue_locker;
 			{
 				// NULL event handle will simply wait immediately:
 				//	https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12fence-seteventoncompletion#remarks
+				// Simply wait for the fence value to be set to 1 by the GPU; see queue.queue->Signal() above
 				dx12_check(frame_fence[bufferindex][queue]->SetEventOnCompletion(1, NULL));
 			}
-			dx12_check(frame_fence[bufferindex][queue]->Signal(0));
+			dx12_check(frame_fence[bufferindex][queue]->Signal(0)); // reset fence to 0 for next frame
 		}
 
 		allocationhandler->Update(FRAMECOUNT, BUFFERCOUNT);

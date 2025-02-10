@@ -455,6 +455,7 @@ namespace wi::graphics
 			void SignalGPU(ID3D12CommandQueue* queue)
 			{
 				// Descriptor heaps' progress is recorded by the GPU:
+				// See DescriptorBinder::flush function for more details
 				fenceValue = allocationOffset.load();
 				dx12_check(queue->Signal(fence.Get(), fenceValue));
 				cached_completedValue = fence->GetCompletedValue();
