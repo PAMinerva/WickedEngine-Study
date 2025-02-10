@@ -211,7 +211,7 @@ namespace wi::font
 					}
 					status.start_new_word = false;
 
-					// use the cursor (position of the prev character) as the baseline to position the quad of the current character
+					// use the cursor (position of the prev character) to position the quad of the current character
 					const float left = status.cursor.position.x + glyphOffsetX;
 					const float right = left + glyphWidth;
 					const float top = status.cursor.position.y + glyphOffsetY;
@@ -361,6 +361,7 @@ namespace wi::font
 	{
 		std::scoped_lock lck(locker);
 
+		// upscaling used to go from logical to physical space
 		upscaling = std::max(1.5f, upscaling); // add some minimum upscaling, especially for SDF
 		static float upscaling_prev = 1;
 		const float upscaling_rcp = 1.0f / upscaling;
@@ -373,6 +374,7 @@ namespace wi::font
 		}
 
 		// If there are pending glyphs, render them and repack the atlas:
+		// See ParseText above
 		if (!pendingGlyphs.empty())
 		{
 			for (int32_t raw : pendingGlyphs)
@@ -397,8 +399,18 @@ namespace wi::font
 					}
 				}
 
+				// See stb_truetype.h
+				// fontScaling can be used to scale the glyph metrics from logical to physical space, based on the font size.
 				float fontScaling = stbtt_ScaleForPixelHeight(&fontStyle->fontInfo, height * upscaling);
 
+				// xoff/yoff are the offset in pixels from the glyph origin to the top-left of the bitmap
+				// yoff is the vertical offset from the glyph's origin to the top edge of the bitmap (in pixels misured with respect to the glyph space).
+				// xoff is the horizontal offset from the glyph's origin to the left edge of the bitmap (in pixels misured with respect to the glyph space).
+				// The bitmap's top-left corner is at (0, 0) in bitmap space. The glyph might not start at (0, 0) because of spacing within the character.
+				// glyph's origin usually is the intersection between the baseline and the leftmost point of the glyph.
+				// The space of the glyph is a logical space, with the x-axis going from left to right (similar to bitmap space) and the y-axis going
+				// from bottom to top (opposite to bitmap space).
+				// This means that both xoff and yoff usually are negative values.
 				Bitmap& bitmap = bitmap_lookup[hash.raw];
 				bitmap.width = 0;
 				bitmap.height = 0;
@@ -406,7 +418,7 @@ namespace wi::font
 				bitmap.yoff = 0;
 
 				if (is_sdf)
-				{
+				{	// See stb_truetype.h
 					unsigned char* data = stbtt_GetGlyphSDF(
 						&fontStyle->fontInfo,
 						fontScaling,
@@ -447,10 +459,15 @@ namespace wi::font
 				rect_lookup[hash.raw] = rect;
 
 				Glyph& glyph = glyph_lookup[hash.raw];
-				glyph.x = float(bitmap.xoff) * upscaling_rcp;
+				glyph.x = float(bitmap.xoff) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
+				// ascent * fontScaling is the distance from the baseline to the top of the glyph,
+				// scaled in pixels based on the font size.
+				// By adding yoff * fontScaling, we get the little distance from the top of the glyph to
+				// the top of the bitmap, misured in pixels with respect to the glyph space (similar to xoff,
+				// which is the distance from the left of the glyph to the left of the bitmap).
 				glyph.y = (float(bitmap.yoff) + float(fontStyle->ascent) * fontScaling) * upscaling_rcp;
-				glyph.width = float(bitmap.width) * upscaling_rcp;
-				glyph.height = float(bitmap.height) * upscaling_rcp;
+				glyph.width = float(bitmap.width) * upscaling_rcp;   // see PhysicalToLogical in wiCanvas.h
+				glyph.height = float(bitmap.height) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
 				glyph.fontStyle = fontStyle;
 			}
 			pendingGlyphs.clear();
