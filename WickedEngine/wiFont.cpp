@@ -502,9 +502,20 @@ namespace wi::font
 				// Iterate all packed glyph rectangles:
 				for (auto& rect : packer.rects)
 				{
-					// Esclude the pixels on the border of the rectangle.
-					// This will avoid copying pixels on the border of the glyph bitmap to the CPU-side texture atlas,
-					// which can be useful to reduce aliasing artifacts when sampling the texture atlas.
+					// Above the rect is built like this:
+					// 
+					// wi::rectpacker::Rect rect = {};
+					// rect.w = bitmap.width + 2;
+					// rect.h = bitmap.height + 2;
+					// 
+					// so this means that, for example, if the bitmap were 8x8, the rect will
+					// be 10x10 and packer.pack will calculate x and y based on the 10x10 rect.
+					// Now, we want to adjust the rect to fit the actual bitmap size, but
+					// subtracting 2 from the width and height of the rect is not enough,
+					// because this operation will move the 8x8 rect to the right and down
+					// by 2 pixels in the 10x10 area of the atlas reserved for the glyph.
+					// So, we need to move the rect to the left and up by 1 pixel to make
+					// the 8x8 bitmap fit the 10x10 rect in the center.
 					rect.x += 1;
 					rect.y += 1;
 					rect.w -= 2;
