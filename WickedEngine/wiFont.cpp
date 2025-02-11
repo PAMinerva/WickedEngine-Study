@@ -640,7 +640,7 @@ namespace wi::font
 			FontConstants font = {};
 			font.buffer_index = device->GetDescriptorIndex(&mem.buffer, SubresourceType::SRV); // get the index of the SRV (describing the vertex buffer) in the heap
 			font.buffer_offset = (uint32_t)mem.offset; // offset of the vertex buffer portion containing the current text line
-			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV);
+			font.texture_index = device->GetDescriptorIndex(&texture, SubresourceType::SRV); // get the index of the SRV (describing the texture atlas) in the heap
 			if (font.buffer_index < 0 || font.texture_index < 0) // does it support bindless only?
 			{
 				return status.cursor;
