@@ -410,8 +410,8 @@ namespace wi::font
 				// glyph's origin usually is the intersection between the baseline and the leftmost point of the glyph.
 				// The space of the glyph is a logical space, with the x-axis going from left to right (similar to bitmap space) and the y-axis going
 				// from bottom to top (opposite to bitmap space).
-				// This means that both xoff and yoff usually are negative values because they are offsets (vectors) from the origin to the top-left
-				// corner of the bitmap.
+				// This means that both xoff and yoff usually are negative values because they are offsets (vectors) in bitmap space from the origin to
+				// the top-left corner of the bitmap.
 				Bitmap& bitmap = bitmap_lookup[hash.raw];
 				bitmap.width = 0;
 				bitmap.height = 0;
@@ -461,15 +461,15 @@ namespace wi::font
 
 				Glyph& glyph = glyph_lookup[hash.raw];
 				glyph.x = float(bitmap.xoff) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
-				// ascent * fontScaling is the offset from the baseline to the top of the glyph,
-				// scaled in pixels based on the font size.
-				// By adding ascent * fontScaling to yoff, we get the little offset from the top of the glyph to
-				// the top of the bitmap, misured in pixels with respect to the bitmap space (similar to xoff,
+				// ascent * fontScaling is the offset from the the top of the glyph to the baseline,
+				// in pixels and scaled based on the font size.
+				// By adding yoff to ascent * fontScaling, we get the offset from the top of the bitmap
+				// to the top of the glyph, misured in pixels with respect to the bitmap space (similar to xoff,
 				// which is the offset from the left of the glyph to the left of the bitmap).
-				// glyph.x is the logical offset from where the glyph start (on the left side) to the
-				// immaginary left corner of the glyph space.
-				// glyph.y is the logical offset from the immaginary top corner of the glyph space
-				// to where the glyph start (on the top side).
+				// glyph.x is the logical offset from the leftmost point of the glyph to the left border of the glyph
+				// in the glyph space.
+				// glyph.y is the logical offset from the top border of the glyph to the uppermost point of the glyph
+				// in the glyph space.
 				glyph.y = (float(bitmap.yoff) + float(fontStyle->ascent) * fontScaling) * upscaling_rcp;
 				glyph.width = float(bitmap.width) * upscaling_rcp;   // see PhysicalToLogical in wiCanvas.h
 				glyph.height = float(bitmap.height) * upscaling_rcp; // see PhysicalToLogical in wiCanvas.h
@@ -486,6 +486,7 @@ namespace wi::font
 			}
 
 			// Perform packing and process the result if successful:
+			// pack multiple characters into one atlas
 			if (packer.pack(4096))
 			{
 				// Retrieve texture atlas dimensions:
@@ -501,6 +502,9 @@ namespace wi::font
 				// Iterate all packed glyph rectangles:
 				for (auto& rect : packer.rects)
 				{
+					// Esclude the pixels on the border of the rectangle.
+					// This will avoid copying pixels on the border of the glyph bitmap to the CPU-side texture atlas,
+					// which can be useful to reduce aliasing artifacts when sampling the texture atlas.
 					rect.x += 1;
 					rect.y += 1;
 					rect.w -= 2;
@@ -513,9 +517,12 @@ namespace wi::font
 					Glyph& glyph = glyph_lookup[hash];
 					Bitmap& bitmap = bitmap_lookup[hash];
 
+					// Copy, row by row, the glyph bitmap to the CPU-side texture atlas
+					// Note that a row in the glyph bitmap is a row in the CPU-side texture atlas but with a different pitch
+					// since the atlas includes all the rows of all the glyphs.
 					for (int row = 0; row < bitmap.height; ++row)
 					{
-						uint8_t* dst = atlas.data() + rect.x + (rect.y + row) * atlasWidth;
+ 						uint8_t* dst = atlas.data() + rect.x + (rect.y + row) * atlasWidth;
 						uint8_t* src = bitmap.data.data() + row * bitmap.width;
 						std::memcpy(dst, src, bitmap.width);
 					}
@@ -526,6 +533,7 @@ namespace wi::font
 					glyph.tc_top = float(rect.y);
 					glyph.tc_bottom = glyph.tc_top + float(rect.h);
 
+					// Normalize texture coordinates:
 					glyph.tc_left *= inv_width;
 					glyph.tc_right *= inv_width;
 					glyph.tc_top *= inv_height;
