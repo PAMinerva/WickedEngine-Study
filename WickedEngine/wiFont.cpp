@@ -555,6 +555,8 @@ namespace wi::font
 				// Upload the CPU-side texture atlas bitmap to the GPU:
 				// The texture atlas is a 2D texture where each texel is 8-bit (R8_UNORM) with 0 is no coverage (transparent),
 				// 255 is fully covered (opaque).
+				// Also create an SRV to the texture atlas and write it to an appropriate heap (copied in a bindless one as well if
+				// slots are available; if that's the case, an index to the descriptor is stored in the internal state of the texture).
 				wi::texturehelper::CreateTexture(texture, atlas.data(), atlasWidth, atlasHeight, Format::R8_UNORM);
 				GetDevice()->SetName(&texture, "wi::font::texture");
 			}
@@ -628,7 +630,8 @@ namespace wi::font
 			// All text lines will be stored in the same buffer, so the allocation needs to be built iteratively (see AllocateGPU).
 			// A reference to the shared buffer containing all text lines can be retrieved from the internal state of the
 			// command list associated with the current frame.
-			// Also create an SRV to shared buffer and write it to an appropriate heap (bindless if slots are available).
+			// Also create an SRV to shared buffer and write it to an appropriate heap (copied in a bindless one as well if
+			// slots are available; if that's the case, an index to the descriptor is stored in the internal state of the texture).
 			// Remember that the index of the descriptor (in the bindless heap or in the subresources_srv array) can be
 			// retrieved from the internal state of the buffer.
 			GraphicsDevice::GPUAllocation mem = device->AllocateGPU(sizeof(FontVertex) * status.quadCount * 4, cmd);
