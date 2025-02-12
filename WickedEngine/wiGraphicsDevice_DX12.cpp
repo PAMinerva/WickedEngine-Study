@@ -3685,6 +3685,13 @@ std::mutex queue_locker;
 			texture->desc.mip_levels = GetMipCount(texture->desc.width, texture->desc.height, texture->desc.depth);
 		}
 
+		// retrieve information about the memory layout of subresources within a resource.
+		// GetCopyableFootprints is useful to fill-in fields of D3D12 structs involved in copying subresource data.
+		// Specifically, GetCopyableFootprints provides :
+		// 	The memory layout of each subresource (via D3D12_PLACED_SUBRESOURCE_FOOTPRINT).
+		//	The number of rows in each subresource.
+		//	The size of each row in bytes.
+		//	The total size in bytes required for the copy operation.
 		internal_state->total_size = 0;
 		internal_state->footprints.resize(desc->array_size * std::max(1u, desc->mip_levels));
 		internal_state->rowSizesInBytes.resize(internal_state->footprints.size());
@@ -3920,6 +3927,7 @@ std::mutex queue_locker;
 				void* mapped_data = nullptr;
 				if (texture->mapped_data == nullptr)
 				{
+					// Create a staging buffer in the internal state of cmd.uploadbuffer and map it to cmd.uploadbuffer.mapped_data
 					cmd = copyAllocator.allocate(internal_state->total_size);
 					mapped_data = cmd.uploadbuffer.mapped_data;
 				}
@@ -3934,12 +3942,16 @@ std::mutex queue_locker;
 
 					if (internal_state->rowSizesInBytes[i] > (SIZE_T)-1)
 						continue;
+
+					// Copy the texture (subresource) data to the intermediate upload buffer stored in CopyCMD
 					D3D12_MEMCPY_DEST DestData = {};
 					DestData.pData = (void*)((UINT64)mapped_data + internal_state->footprints[i].Offset);
 					DestData.RowPitch = (SIZE_T)internal_state->footprints[i].Footprint.RowPitch;
 					DestData.SlicePitch = (SIZE_T)internal_state->footprints[i].Footprint.RowPitch * (SIZE_T)internal_state->numRows[i];
 					MemcpySubresource(&DestData, &data, (SIZE_T)internal_state->rowSizesInBytes[i], internal_state->numRows[i], internal_state->footprints[i].Footprint.Depth);
 
+					// Register a copy command in the command list to copy, subresource by subresource, the intermediate upload buffer in CopyCMD
+					// storing the texture data to the texture internal state, which represents the actual texture resource on the GPU.
 					if (cmd.IsValid())
 					{
 						CD3DX12_TEXTURE_COPY_LOCATION Dst(internal_state->resource.Get(), UINT(i));
@@ -3955,6 +3967,7 @@ std::mutex queue_locker;
 					}
 				}
 
+				// Submit the copy command.
 				if (cmd.IsValid())
 				{
 					copyAllocator.submit(cmd);
