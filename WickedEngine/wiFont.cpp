@@ -496,6 +496,7 @@ namespace wi::font
 				const float inv_height = 1.0f / atlasHeight;
 
 				// Create the CPU-side texture atlas and fill with transparency (0):
+				// so each texel is an 8-bit value where 0 is no coverage (transparent), 255 is fully covered (opaque).
 				wi::vector<uint8_t> atlas(size_t(atlasWidth) * size_t(atlasHeight));
 				std::fill(atlas.begin(), atlas.end(), 0);
 
@@ -552,6 +553,8 @@ namespace wi::font
 				}
 
 				// Upload the CPU-side texture atlas bitmap to the GPU:
+				// The texture atlas is a 2D texture where each texel is 8-bit (R8_UNORM) with 0 is no coverage (transparent),
+				// 255 is fully covered (opaque).
 				wi::texturehelper::CreateTexture(texture, atlas.data(), atlasWidth, atlasHeight, Format::R8_UNORM);
 				GetDevice()->SetName(&texture, "wi::font::texture");
 			}
