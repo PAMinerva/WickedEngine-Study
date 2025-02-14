@@ -6112,11 +6112,11 @@ std::mutex queue_locker;
 		RTV.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
 
 		// Marks the beginning of a render pass by binding a set of output resources for the duration of the render pass:
-		// One or more RTVs (render target views), as well as their beginning and ending access characteristics (including the clear values).
-		// An optional depth/stencil buffer view (DSV), as well as its beginning and ending access characteristics (including the clear value).
-		// The last argument is a flag that specifies the nature/requirements of the render pass. For example, whether it is a suspending or a
-		// resuming render pass, or whether it wants to write to unordered access view(s).
-		// D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES indicates that writes to unordered access view(s) should be allowed during the render pass.
+		//  - One or more RTVs (render target views), as well as their beginning and ending access characteristics (including the clear values).
+		//  - An optional depth/stencil buffer view (DSV), as well as its beginning and ending access characteristics (including the clear value).
+		//  - The last argument is a flag that specifies the nature/requirements of the render pass. For example, whether it is a suspending or a
+		//    resuming render pass, or whether it wants to write to unordered access view(s).
+		//    D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES indicates that writes to unordered access view(s) should be allowed during the render pass.
 		commandlist.GetGraphicsCommandListLatest()->BeginRenderPass(1, &RTV, nullptr, D3D12_RENDER_PASS_FLAG_ALLOW_UAV_WRITES);
 #endif // DISABLE_RENDERPASS
 
