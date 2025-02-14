@@ -194,6 +194,7 @@ namespace wi::font
 				}
 				else
 				{
+					// retrieve the user calculated glyph metrics from the lookup table
 					const Glyph& glyph = glyph_lookup.at(hash.raw);
 					const float glyphWidth = glyph.width;
 					const float glyphHeight = glyph.height;
@@ -202,7 +203,7 @@ namespace wi::font
 					const float fontScale = stbtt_ScaleForPixelHeight(&glyph.fontStyle->fontInfo, (float)params.size);
 
 					const size_t vertexID = size_t(status.quadCount) * 4;
-					vertexList.resize(vertexID + 4);
+					vertexList.resize(vertexID + 4); // append additional 4 vertices to the vertex list for the current character in the text line
 					status.quadCount++; // add a new quad for the current character in the text line
 
 					if (status.start_new_word)
@@ -239,12 +240,19 @@ namespace wi::font
 					vertexList[vertexID + 2].uv = float2(tc_left, tc_bottom);
 					vertexList[vertexID + 3].uv = float2(tc_right, tc_bottom);
 
+					// Get the character horizontal metrics to advance the cursor position
 					int advance, lsb;
 					stbtt_GetCodepointHMetrics(&glyph.fontStyle->fontInfo, code, &advance, &lsb);
 					status.cursor.position.x += advance * fontScale;
 
 					status.cursor.position.x += params.spacingX;
 
+					// If the text length is greater than 1 and the current character is not the last one,
+					// calculate the kerning between the current character and the next character and apply it to the cursor position.
+					// Kerning is the process of adjusting the spacing between specific pairs of characters
+					// to improve the visual appearance of the text. It ensures that the spacing between
+					// characters is visually pleasing and consistent. For example, the pair "AV" often
+					// requires kerning to avoid excessive space between the characters.
 					if (text_length > 1 && i < text_length - 1 && text[i + 1])
 					{
 						int code_next = (int)text[i + 1];
@@ -253,6 +261,8 @@ namespace wi::font
 					}
 				}
 
+				// Update the cursor size to include the next line of text.
+				// The cursor size specifies the size of the entire text from the first character.
 				status.cursor.size.x = std::max(status.cursor.size.x, status.cursor.position.x);
 				status.cursor.size.y = std::max(status.cursor.size.y, status.cursor.position.y + linebreak_size);
 			}
