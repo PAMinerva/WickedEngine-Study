@@ -292,7 +292,7 @@ if (WIN32)
     add_custom_command(
         TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND cmd /c if not exist "${CMAKE_CURRENT_BINARY_DIR}/shaders" mklink /J "${CMAKE_CURRENT_BINARY_DIR}/shaders" "${WICKED_ROOT_DIR}/WickedEngine/shaders"
+		COMMAND if not exist "${CMAKE_CURRENT_BINARY_DIR}/shaders" \( mklink /J "${CMAKE_CURRENT_BINARY_DIR}/shaders" "${WICKED_ROOT_DIR}/WickedEngine/shaders" \)
     )
 else()
     add_custom_command(
