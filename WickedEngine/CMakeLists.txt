@@ -289,10 +289,12 @@ set_property(TARGET dxcompiler PROPERTY
 # Su Windows, create_symlink implica che cmake userà l'API di sistema CreateSymbolicLink per creare un collegamento simbolico, il che richiede privilegi particolari
 # che un normale utente potrebbe non avere. Per evitare di dover eseguire CMake come amministratore, si userà il comando mklink di Windows per creare il collegamento simbolico.
 if (WIN32)
+    string(REPLACE "/" "\\" CMAKE_CURRENT_BINARY_DIR_WIN "${CMAKE_CURRENT_BINARY_DIR}")
+    string(REPLACE "/" "\\" WICKED_ROOT_DIR_WIN "${WICKED_ROOT_DIR}")
     add_custom_command(
         TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
-        COMMAND cmd /c if not exist ${CMAKE_CURRENT_BINARY_DIR}/shaders mklink /J ${CMAKE_CURRENT_BINARY_DIR}/shaders ${WICKED_ROOT_DIR}/WickedEngine/shaders
+        COMMAND cmd /c if not exist ${CMAKE_CURRENT_BINARY_DIR_WIN}\\shaders mklink /J ${CMAKE_CURRENT_BINARY_DIR_WIN}\\shaders ${WICKED_ROOT_DIR_WIN}\\WickedEngine\\shaders
     )
 else()
     add_custom_command(
