@@ -284,11 +284,19 @@ set_property(TARGET dxcompiler PROPERTY
 # CMAKE_CURRENT_BINARY_DIR è la directory di build corrente, dove CMake genera i file intermedi per il target attualmente configurato. In questo caso build\WickedEngine.
 # (se ti serve la directory dove vengono generati gli eseguibili usa RUNTIME_OUTPUT_DIRECTORY).
 # -E create_symlink: Crea un collegamento simbolico (symlink) da una directory sorgente a una destinazione.
-add_custom_command(
-		TARGET ${TARGET_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
-		COMMAND ${CMAKE_COMMAND} -E create_symlink ${WICKED_ROOT_DIR}/WickedEngine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
-)
+if (WIN32)
+    add_custom_command(
+        TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
+        COMMAND cmd /c if not exist ${CMAKE_CURRENT_BINARY_DIR}/shaders mklink /J ${CMAKE_CURRENT_BINARY_DIR}/shaders ${WICKED_ROOT_DIR}/WickedEngine/shaders
+    )
+else()
+    add_custom_command(
+        TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ${WICKED_ROOT_DIR}/WickedEngine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
+    )
+endif()
 
 
 # OFFLINE SHADER COMPILER
