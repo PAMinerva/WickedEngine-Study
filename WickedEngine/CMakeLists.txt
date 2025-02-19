@@ -293,6 +293,11 @@ if (WIN32)
         TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${WICKED_ROOT_DIR}/WickedEngine/${LIBDXCOMPILER} ${CMAKE_CURRENT_BINARY_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${WICKED_ROOT_DIR}/WickedEngine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
+
+        execute_process(
+            COMMAND cmd /C mklink /J ${WICKED_ROOT_DIR}/WickedEngine/shaders ${CMAKE_CURRENT_BINARY_DIR}/shaders
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        )
     )
 else()
     add_custom_command(
