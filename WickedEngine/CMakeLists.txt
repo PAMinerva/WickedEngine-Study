@@ -284,6 +284,8 @@ set_property(TARGET dxcompiler PROPERTY
 # CMAKE_CURRENT_BINARY_DIR è la directory di build corrente, dove CMake genera i file intermedi per il target attualmente configurato. In questo caso build\WickedEngine.
 # (se ti serve la directory dove vengono generati gli eseguibili usa RUNTIME_OUTPUT_DIRECTORY).
 # -E create_symlink: Crea un collegamento simbolico (symlink) da una directory sorgente a una destinazione.
+# Su Windows, create_symlink implica che cmake userà l'API di sistema CreateSymbolicLink per creare un collegamento simbolico, il che richiede privilegi particolari
+# che un normale utente potrebbe non avere. Per evitare di dover eseguire CMake come amministratore, si userà il comando mklink di Windows per creare il collegamento simbolico.
 if (WIN32)
     add_custom_command(
         TARGET ${TARGET_NAME} POST_BUILD
