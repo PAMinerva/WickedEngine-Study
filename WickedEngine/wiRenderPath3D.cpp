@@ -342,6 +342,8 @@ namespace wi
 
 	void RenderPath3D::PreUpdate()
 	{
+		// If you follow Application::ActivatePath (tipically called in main), eventually RenderPath3D::Start will be invoked,
+		// which calls ResizeBuffers, which initializes camera.
 		camera_previous = *camera;
 		camera_reflection_previous = camera_reflection;
 	}
