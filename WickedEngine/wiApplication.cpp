@@ -207,6 +207,9 @@ namespace wi
 		// avoid instability caused by large delta time
 		deltaTime = clamp(deltaTime, 0.0f, 0.5f);
 
+		// Updates the state of input devices such as the keyboard, mouse, and controllers.
+		// It processes input events, stores the state of keys, mouse buttons, and controller buttons.
+		// This is essential for capturing user interactions and responding to them appropriately within the application.
 		wi::input::Update(window, canvas);
 
 		// Wake up the events that need to be executed on the main thread, in thread safe manner:
