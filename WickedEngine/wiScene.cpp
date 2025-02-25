@@ -350,10 +350,13 @@ namespace wi::scene
 
 		RunExpressionUpdateSystem(ctx);
 
+		// Store in geometryArrayMapped the SRV indices to the various buffers (included in the global vertex buffer)
 		RunMeshUpdateSystem(ctx);
 
+		// Store in materialArrayMapped various material parameters
 		RunMaterialUpdateSystem(ctx);
 
+		// Wait for all previous jobs to finish
 		wi::jobsystem::Wait(ctx); // dependencies
 
 		WaitBuildTopDownHierarchy();
