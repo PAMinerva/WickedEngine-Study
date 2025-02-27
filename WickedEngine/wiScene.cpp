@@ -4338,6 +4338,9 @@ namespace wi::scene
 
 				const TransformComponent& transform = *transforms.GetComponent(entity);
 
+				// Get the world matrix associated with the mesh,build the 8 corners of the bounding box,
+				// transform them to world space, calculate the minimum and maximum points and
+				// build the world space bounding box from them.
 				XMMATRIX W = XMLoadFloat4x4(&transform.world);
 				aabb = mesh.aabb.transform(W);
 
@@ -4379,8 +4382,8 @@ namespace wi::scene
 					}
 				}
 
-				object.center = aabb.getCenter();
-				object.radius = aabb.getRadius();
+				object.center = aabb.getCenter(); // calculate the center of the object by using the median point formula applied to the bounding box
+				object.radius = aabb.getRadius(); // calculate the vector from the center to one of the corners of the bounding box to get its length
 
 				// LOD select:
 				if (mesh.subsets_per_lod > 0)
@@ -4454,6 +4457,10 @@ namespace wi::scene
 				XMFLOAT4X4 worldMatrix = matrix_objects[args.jobIndex];
 
 				inst.transformRaw.Create(worldMatrix);
+				// If position coordinates are in UNORM format, we need to convert them to back to floats
+				// by inverting the UNORM mapping during MeshComponent::CreateRenderData
+				// See inverse_lerp in CommonInclude.h to understand that we need both a scaling
+				// (to invert the division by (max - min)) and a translation (to invert the subtraction of min from position)
 				if (IsFormatUnorm(mesh.position_format) && !mesh.so_pos.IsValid())
 				{
 					// The UNORM correction is only done for the GPU data!
