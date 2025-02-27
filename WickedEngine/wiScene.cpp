@@ -383,6 +383,7 @@ namespace wi::scene
 
 		wi::jobsystem::Wait(ctx); // dependencies
 
+		// Store in instanceArrayMapped various object parameters, such as the offset to the vertex information in the global vertex buffer
 		RunObjectUpdateSystem(ctx);
 
 		RunCameraUpdateSystem(ctx);
