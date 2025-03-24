@@ -368,7 +368,7 @@ namespace wi
 
 		if (activePath != nullptr)
 		{
-			activePath->PreRender();
+			activePath->PreRender(); // update per frame data (scene, camera, etc) before rendering
 			activePath->Render();
 			activePath->PostRender();
 		}
