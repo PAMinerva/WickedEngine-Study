@@ -4722,6 +4722,7 @@ void UpdateRenderData(
 
 	PushBarrier(GPUBarrier::Buffer(&vis.scene->meshletBuffer, ResourceState::SHADER_RESOURCE, ResourceState::UNORDERED_ACCESS));
 
+	// Barries for frame cb, instance buffer, geometry buffer and material buffer (see Scene::Update in wiScene.cpp)
 	PushBarrier(GPUBarrier::Buffer(&buffers[BUFFERTYPE_FRAMECB], ResourceState::CONSTANT_BUFFER, ResourceState::COPY_DST));
 	if (vis.scene->instanceBuffer.IsValid())
 	{
