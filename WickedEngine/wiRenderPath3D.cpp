@@ -418,6 +418,7 @@ namespace wi
 
 		XMUINT2 internalResolution = GetInternalResolution();
 
+		// update per frame data (scene, camera, etc)
 		wi::renderer::UpdatePerFrameData(
 			*scene,
 			visibility_main,
@@ -872,6 +873,8 @@ namespace wi
 		wi::jobsystem::Execute(ctx, [this, cmd](wi::jobsystem::JobArgs args) {
 			GraphicsDevice* device = wi::graphics::GetDevice();
 
+			// Logically bind (on CPU side) the camera data to a binding slot and mark the related root parameter as dirty.
+			// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them)
 			wi::renderer::BindCameraCB(
 				*camera,
 				camera_previous,
