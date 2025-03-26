@@ -881,8 +881,13 @@ namespace wi
 				camera_reflection,
 				cmd
 			);
+
+			// Store resource barriers that the renderer will require.
+			// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty (see BindCommonResources in UpdateRenderData).
+			// Copy geometry, instance and material buffeer from upload to gpu. 
 			wi::renderer::UpdateRenderData(visibility_main, frameCB, cmd);
 
+			// add other barriers that are not included in the renderer's UpdateRenderData function.
 			uint32_t num_barriers = 2;
 			GPUBarrier barriers[] = {
 				GPUBarrier::Image(&debugUAV, debugUAV.desc.layout, ResourceState::UNORDERED_ACCESS),
