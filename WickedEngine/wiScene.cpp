@@ -96,6 +96,8 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(instanceUploadBuffer); ++i)
 			{
+				// instanceUploadBuffer will be copied to instanceBuffer in wi::renderer::UpdateRenderData, called by wi:RenderPath3D::Render,
+				// called by Application::Render, called by Application::Run, called by main.
 				device->CreateBuffer(&desc, nullptr, &instanceUploadBuffer[i]);
 				device->SetName(&instanceUploadBuffer[i], "Scene::instanceUploadBuffer");
 			}
@@ -134,6 +136,7 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(materialUploadBuffer); ++i)
 			{
+				// materialUploadBuffer will be copied to materialBuffer in wi::renderer::UpdateRenderData (see comment above)
 				device->CreateBuffer(&desc, nullptr, &materialUploadBuffer[i]);
 				device->SetName(&materialUploadBuffer[i], "Scene::materialUploadBuffer");
 			}
@@ -317,6 +320,7 @@ namespace wi::scene
 			desc.usage = Usage::UPLOAD;
 			for (int i = 0; i < arraysize(geometryUploadBuffer); ++i)
 			{
+				// geometryUploadBuffer will be copied to geometryBuffer in wi::renderer::UpdateRenderData (see comment above)
 				device->CreateBuffer(&desc, nullptr, &geometryUploadBuffer[i]);
 				device->SetName(&geometryUploadBuffer[i], "Scene::geometryUploadBuffer");
 			}

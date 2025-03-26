@@ -4820,6 +4820,10 @@ void UpdateRenderData(
 	wi::profiler::EndRange(prof_updatebuffer_cpu);
 	wi::profiler::EndRange(prof_updatebuffer_gpu);
 
+	// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty.
+	// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them;
+	// however, in this case, the slot is different from the one used by wi::renderer::BindCameraCB, called by wi::RenderPath3D::Render,
+	// called by Application::Render, called by Application::Run, called by main)
 	BindCommonResources(cmd);
 
 	{
