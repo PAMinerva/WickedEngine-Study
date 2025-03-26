@@ -5844,7 +5844,7 @@ std::mutex queue_locker;
 			{
 				dx12_check(fence->SetEventOnCompletion(1, nullptr));
 			}
-			fence->Signal(0);
+			fence->Signal(0); // reset fence to 0
 		}
 	}
 
