@@ -380,6 +380,7 @@ namespace wi::scene
 		wi::jobsystem::Wait(ctx); // dependencies
 
 		// Store in instanceArrayMapped various object parameters, such as the offset to the vertex information in the global vertex buffer
+		// Calculate if an object is visible or not (update occullusion culling for object)
 		RunObjectUpdateSystem(ctx);
 
 		RunCameraUpdateSystem(ctx);
