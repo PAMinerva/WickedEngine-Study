@@ -6898,6 +6898,8 @@ void DrawScene(
 	device->EventBegin("DrawScene", cmd);
 	device->BindShadingRate(ShadingRate::RATE_1X1, cmd);
 
+	// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty.
+	// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them;
 	BindCommonResources(cmd);
 
 	if (ocean && !skip_planar_reflection_objects && vis.scene->weather.IsOceanEnabled() && vis.scene->ocean.IsValid())
