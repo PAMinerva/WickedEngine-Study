@@ -3033,6 +3033,7 @@ void RenderMeshes(
 	}
 
 	// Pre-allocate space for all the instances in GPU-buffer:
+	// Return the index of the SRV in the bindless heap
 	const size_t alloc_size = renderQueue.size() * camera_count * sizeof(ShaderMeshInstancePointer);
 	const GraphicsDevice::GPUAllocation instances = device->AllocateGPU(alloc_size, cmd);
 	const int instanceBufferDescriptorIndex = device->GetDescriptorIndex(&instances.buffer, SubresourceType::SRV);
