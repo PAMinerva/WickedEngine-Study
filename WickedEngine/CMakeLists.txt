@@ -153,7 +153,7 @@ add_library(${TARGET_NAME} ${WICKED_LIBRARY_TYPE}
 # MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
 # CMAKE_CXX_FLAGS è una variabile che contiene le opzioni di compilazione per il compilatore C++. È usata da CMake per passare argomenti al compilatore.
 if(MSVC)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /bigobj")
 endif()
 
 # Crea un alias per il target di CMake già esistente, specificato dalla variabile ${TARGET_NAME}. 
