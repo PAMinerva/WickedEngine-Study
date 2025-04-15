@@ -3103,6 +3103,10 @@ void RenderMeshes(
 				device->BindStencilRef(stencilRef, cmd);
 			}
 
+			// Bind the portion of the general buffer containing the index buffer
+			// Note that the other buffers included in the general buffer will be accessed through the SRVs in the bindless portion
+			// of the shader-visible heap; see wi::Scene::MeshComponent::CreateRenderData, especially where CreateSubresource
+			// is invoked multiple times to create the various subresources and SRVs to access them.
 			if (!meshShaderPSO && prev_ib != &mesh.generalBuffer)
 			{
 				device->BindIndexBuffer(&mesh.generalBuffer, mesh.GetIndexFormat(), mesh.ib.offset, cmd);
