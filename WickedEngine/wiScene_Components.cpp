@@ -1301,8 +1301,8 @@ namespace wi::scene
 
 		// Create SRVs for the various vertex buffers and index buffer contained in generalBuffer:
 		// Each SRV will expose the corresponding buffer data (offset and size) in generalBuffer.
-		// If bindless resources are used, descriptor_srv will store the bindless index of the resource in the bindless heap.
-		// Otherwise, descriptor_srv will store the descriptor index of the resource in the array of SingleDescriptor internally stored in generalBuffer,
+		// If bindless resources are used, descriptor_srv will store the bindless index of the descriptor in the bindless portion of the shader-visible heap.
+		// Otherwise, descriptor_srv will store an integer to index in an array of SingleDescriptor internally stored in generalBuffer,
 		// where each SingleDescriptor stores a handle to a descriptor in the corresponding descriptor heap.
 		assert(ib.IsValid());
 		const Format ib_format = GetIndexFormat() == IndexBufferFormat::UINT32 ? Format::R32_UINT : Format::R16_UINT;

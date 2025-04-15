@@ -1769,7 +1769,7 @@ std::mutex queue_locker;
 	void GraphicsDevice_DX12::DescriptorBinder::flush(bool graphics, CommandList cmd)
 	{
 		uint64_t& dirty = graphics ? dirty_graphics : dirty_compute;
-		if (dirty == 0ull) // see the Bind* functions below, if nothing is bound, then there are no bits set in the dirty mask
+		if (dirty == 0ull) // see the Bind* functions below (to this purpose, find dirty_graphics), if nothing is bound, then there are no bits set in the dirty mask
 			return;
 
 		CommandList_DX12& commandlist = device->GetCommandList(cmd);
@@ -1798,8 +1798,10 @@ std::mutex queue_locker;
 				if (stats.descriptorCopyCount == 1 && param.DescriptorTable.pDescriptorRanges[0].RangeType != D3D12_DESCRIPTOR_RANGE_TYPE_CBV)
 				{
 					// This is a special case of 1 descriptor per table. This doesn't need copying, but we can just reference single descriptors by their index
-					//	because descriptor index was created already in shader visible descriptor heap for bindless access.
-					//	We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
+					//	because descriptor index was created already in shader visible descriptor heap for bindless access (see, for example,
+					//  wii:Scene::MeshComponent::CreateRenderData, especially where CreateSubresource is called, which in turn invoke SingleDescriptor::init,
+					//  that copy the descriptor in the bindless portion of the shader-visible heap).
+					// We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
 					const D3D12_DESCRIPTOR_RANGE1& range = param.DescriptorTable.pDescriptorRanges[0];
 					switch (range.RangeType)
 					{
