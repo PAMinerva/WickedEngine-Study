@@ -151,12 +151,29 @@ namespace wi::shadercompiler
 
 		if (has_flag(input.flags, Flags::DISABLE_OPTIMIZATION))
 		{
-			args.push_back(L"-Od"); // Optimization Level 0: Disables optimizations
-
+			// Optimization Level 0: Disables optimizations
 			// Additional options to include debug info in compiled shaders
 			// Required to debug shaders using PIX or RenderDoc
+			/*args.push_back(L"-Od");
 			args.push_back(L"-Zi");
-			args.push_back(L"-Qembed_debug");
+			args.push_back(L"-Qembed_debug");*/
+
+			if (input.format == ShaderFormat::HLSL6 || input.format == ShaderFormat::HLSL6_XS || input.format == ShaderFormat::HLSL5)
+			{
+				// Optimization Level 0: Disables optimizations
+				// Additional options to include debug info in compiled shaders
+				// Required to debug shaders using PIX or RenderDoc
+				args.push_back(L"-Od");
+				args.push_back(L"-Zi");
+				args.push_back(L"-Qembed_debug");
+			}
+			else if (input.format == ShaderFormat::SPIRV)
+			{
+				// generate NonSemantic.Shader.DebugInfo.100 extended instructions
+				// to include debug info in compiled shaders and support source-level
+				// shader debugging with tools such as RenderDoc
+				args.push_back(L"-fspv-debug=vulkan-with-source");
+			}
 		}
 
 		switch (input.format)
@@ -173,8 +190,8 @@ namespace wi::shadercompiler
 			break;
 		case ShaderFormat::SPIRV: // https://github.com/microsoft/DirectXShaderCompiler/blob/main/docs/SPIR-V.rst
 			args.push_back(L"-spirv");
-			args.push_back(L"-fspv-target-env=vulkan1.2");
-			//args.push_back(L"-fspv-target-env=vulkan1.3"); // this has some problem with RenderDoc AMD disassembly so it's not enabled for now
+			//args.push_back(L"-fspv-target-env=vulkan1.2");
+			args.push_back(L"-fspv-target-env=vulkan1.3"); // this has some problem with RenderDoc AMD disassembly so it's not enabled for now
 			args.push_back(L"-fvk-use-dx-layout");
 			args.push_back(L"-fvk-use-dx-position-w");
 			//args.push_back(L"-fvk-b-shift"); args.push_back(L"0"); args.push_back(L"0"); // this is implicit
