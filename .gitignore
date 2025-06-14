@@ -237,3 +237,6 @@ log.txt
 wicked-editor-crash-log.txt
 pso_cache_vulkan
 .DS_Store
+
+# clang compilation database
+compile_commands.json
