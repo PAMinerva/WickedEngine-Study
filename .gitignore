@@ -226,6 +226,3 @@ wiShaderdump.h
 # Others
 log.txt
 pso_cache_vulkan
-
-# clang compilation database
-compile_commands.json
