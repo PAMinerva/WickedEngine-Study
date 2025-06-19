@@ -232,6 +232,3 @@ compile_commands.json
 log.txt
 wicked-editor-crash-log.txt
 pso_cache_vulkan
-
-# clang compilation database
-compile_commands.json
