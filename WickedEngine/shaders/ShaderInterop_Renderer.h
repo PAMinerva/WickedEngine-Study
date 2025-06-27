@@ -371,6 +371,8 @@ struct alignas(16) ShaderTextureSlot
 #endif // __cplusplus
 };
 
+// This structure represents the material properties used by the shader.
+// It includes base color, texture data, and other related metadata.
 struct alignas(32) ShaderMaterial
 {
 	uint2 baseColor;
@@ -705,6 +707,8 @@ struct alignas(16) ShaderTransform
 #endif // __cplusplus
 };
 
+// The ShaderMeshInstance structure holds information about a mesh instance,
+// including color, transformation data, geometry offsets.
 struct alignas(32) ShaderMeshInstance
 {
 	uint64_t uid;
@@ -789,11 +793,16 @@ struct alignas(32) ShaderMeshInstance
 	inline half4 GetRimHighlight() { return unpack_half4(rimHighlight); }
 #endif // __cplusplus
 };
+
 #ifdef __cplusplus
 static_assert(sizeof(ShaderMeshInstance) == 256);
 inline static const ShaderMeshInstance shader_mesh_instance_null = ShaderMeshInstance::get_null();
 #endif // __cplusplus
 
+// The ShaderMeshInstancePointer structure is used to encode and store information about a specific
+// mesh instance in the rendering pipeline. It packs the instance index, camera index, and a dither
+// value into a single 32-bit integer for efficient representation and processing in shaders.
+// dither refers to a value used to implement dithered transparency.
 struct ShaderMeshInstancePointer
 {
 	uint data;
