@@ -445,6 +445,10 @@ PixelInput vertex_to_pixel_export(VertexInput input)
 // Vertex shader base:
 PixelInput main(VertexInput input)
 {
+	// Input:
+	// VertexInput contains vertexID, instanceID, and other vertex attributes from different bindless buffers.
+	// Output:
+	// PixelInput contains info for the pixel shader (homogeneous pos, tan, norm, color, etc).
 	return vertex_to_pixel_export(input);
 }
 
