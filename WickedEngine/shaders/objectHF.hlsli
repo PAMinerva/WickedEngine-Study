@@ -49,7 +49,14 @@
 
 PUSHCONSTANT(push, ObjectPushConstants);
 
+// Retrieves a ShaderGeometry from bindless_structured_geometries using a pair of indices:
+// a geometry buffer index (passed via constant buffer; see FrameCB.scene.geometrybuffer),
+// and a geometry index within that buffer (passed as a push constant).
 #define GetMesh() (load_geometry(push.geometryIndex))
+
+// Retrieves a ShaderMaterial from bindless_structured_materials using a pair of indices:
+// a material buffer index (passed via constant buffer; see FrameCB.scene.materialbuffer),
+// and a material index within that buffer (passed as a push constant).
 #define GetMaterial() (load_material(push.materialIndex))
 
 #define sampler_objectshader bindless_samplers[descriptor_index(GetMaterial().sampler_descriptor)]
@@ -118,6 +125,8 @@ PUSHCONSTANT(push, ObjectPushConstants);
 #define OBJECTSHADER_USE_COMMON
 #endif // OBJECTSHADER_LAYOUT_COMMON
 
+// VertexInput contains vertexID, instanceID, and allows retrieval of other
+// vertex attributes from different buffers accessed through arrays of bindless descriptors.
 struct VertexInput
 {
 	uint vertexID : SV_VertexID;
@@ -141,6 +150,8 @@ struct VertexInput
 #endif // OBJECTSHADER_USE_PROVOKING_INDEX_BUFFER
 	}
 
+	// Retrieves the position and wind data for the vertex from bindless_buffers_float4 using
+	// vertexID and a vertex buffer index (vb_pos_wind).
 	float4 GetPositionWind()
 	{
 		return bindless_buffers_float4[descriptor_index(GetMesh().vb_pos_wind)][GetVertexID()];
@@ -154,6 +165,8 @@ struct VertexInput
 		return lerp(GetMesh().uv_range_min.xyxy, GetMesh().uv_range_max.xyxy, bindless_buffers_float4[descriptor_index(GetMesh().vb_uvs)][GetVertexID()]);
 	}
 
+	// Retrieves the ShaderMeshInstancePointer for the current instance from bindless_buffers using
+	// a buffer index (push.instances), the instanceID and the instance offset (push.instance_offset).
 	ShaderMeshInstancePointer GetInstancePointer()
 	{
 		if (push.instances >= 0)
@@ -196,6 +209,9 @@ struct VertexInput
 		return bindless_buffers_float4[descriptor_index(GetMesh().vb_tan)][GetVertexID()];
 	}
 
+	// Retrieve the ShaderMeshInstance for the current instance from bindless_structured_meshinstance using	a pair of indices:
+	// an instance buffer index (passed via constant buffer; see FrameCB.scene.instancebuffer),
+	// and a instance index within that buffer (passed as an argument).
 	ShaderMeshInstance GetInstance()
 	{
 		if (push.instances >= 0)
@@ -230,6 +246,7 @@ struct VertexInput
 };
 
 
+// Collects vertex attributes for a surface using VertexInput and ShaderMaterial.
 struct VertexSurface
 {
 	float4 position;
@@ -240,19 +257,21 @@ struct VertexSurface
 	float4 tangent;
 	half ao;
 	half wet;
-
+   
+	// Initializes the vertex attributes (position, normal, color, tangent, UV sets, etc.) 
+    // from the provided ShaderMaterial and VertexInput.
 	inline void create(in ShaderMaterial material, in VertexInput input)
 	{
 		float4 pos_wind = input.GetPositionWind();
 		position = float4(pos_wind.xyz, 1);
 		normal = input.GetNormal();
-		color = half4(material.GetBaseColor() * input.GetInstance().GetColor());
-		color.a *= half(1 - input.GetInstancePointer().GetDither());
+		color = half4(material.GetBaseColor() * input.GetInstance().GetColor()); // mix material color with instance color
+		color.a *= half(1 - input.GetInstancePointer().GetDither()); // implement dithered transparency
 
 		[branch]
 		if (material.IsUsingVertexColors())
 		{
-			color *= input.GetVertexColor();
+			color *= input.GetVertexColor(); // scale color with vertex color
 		}
 
 		[branch]
@@ -277,6 +296,7 @@ struct VertexSurface
 
 		atlas = input.GetAtlasUV();
 
+		// transform position to world space.
 		position = mul(input.GetInstance().transform.GetMatrix(), position);
 
 		wet = input.GetWetmap();
@@ -291,6 +311,7 @@ struct VertexSurface
 	}
 };
 
+// PixelInput contains info for the pixel shader (homogeneous pos, tan, norm, color, etc).
 struct PixelInput
 {
 	precise float4 pos : SV_Position;
@@ -406,7 +427,7 @@ PixelInput vertex_to_pixel_export(VertexInput input)
 #ifdef OBJECTSHADER_USE_CAMERAINDEX
 	ShaderCamera camera = GetCameraIndexed(input.GetInstancePointer().GetCameraIndex());
 #else
-	ShaderCamera camera = GetCamera();
+	ShaderCamera camera = GetCamera();  // retrieve the current camera from the CameraCB constant buffer.
 #endif // OBJECTSHADER_USE_CAMERAINDEX
 	
 #if defined(PREPASS) && defined(OBJECTSHADER_USE_PROVOKING_INDEX_BUFFER)
@@ -414,15 +435,15 @@ PixelInput vertex_to_pixel_export(VertexInput input)
 #endif // defined(PREPASS) && defined(OBJECTSHADER_USE_PROVOKING_INDEX_BUFFER)
 
 #ifndef OBJECTSHADER_USE_NOCAMERA
-	Out.pos = mul(camera.view_projection, Out.pos);
+	Out.pos = mul(camera.view_projection, Out.pos); // transform position to clip space.
 #endif // OBJECTSHADER_USE_NOCAMERA
 
 #ifdef OBJECTSHADER_USE_CLIPPLANE
-	Out.clip = dot(surface.position, camera.clip_plane);
+	Out.clip = dot(surface.position, camera.clip_plane); // compute clip distance for the camera's clip plane.
 #endif // OBJECTSHADER_USE_CLIPPLANE
 
 #if defined(OBJECTSHADER_USE_INSTANCEINDEX) || defined(OBJECTSHADER_USE_DITHERING) || defined(OBJECTSHADER_USE_CAMERAINDEX)
-	Out.poi = input.GetInstancePointer().data;
+	Out.poi = input.GetInstancePointer().data; // store the instance pointer data in the pixel input.
 #endif // OBJECTSHADER_USE_INSTANCEINDEX || OBJECTSHADER_USE_DITHERING || OBJECTSHADER_USE_CAMERAINDEX
 
 #ifdef OBJECTSHADER_USE_COLOR
