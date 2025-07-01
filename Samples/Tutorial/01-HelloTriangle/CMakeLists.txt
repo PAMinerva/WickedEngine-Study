@@ -33,6 +33,10 @@ else ()
 
 	add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
+	# Utilizzando target_link_libraries, il target `01-HelloTriangle` eredita automaticamente tutte le proprietà
+	# di WickedEngine_Windows, incluso il percorso degli header file e le librerie necessarie per la compilazione
+	# definite in WickedEngine/CMakeLists.txt.
+	# Per tale motico 01-HelloTriangle/main_*.cpp può includere WickedEngine.h senza dover specificare il percorso.
 	target_link_libraries(${PROJECT_NAME} PUBLIC WickedEngine_Linux)
 
 	set(LIB_DXCOMPILER "libdxcompiler.so")
