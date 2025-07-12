@@ -195,7 +195,9 @@ if (WIN32)
 	# target_compile_options viene utilizzato per specificare le opzioni di compilazione (flag del compilatore) che devono essere applicate a uno specifico target in CMake.
 	# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3") imposterebbe il flag /W3 per il compilatore C++ a livello globale.
 	# PRIVATE specifica che l'opzione è applicata solo al target ${TARGET_NAME} e non ai target che dipendono da esso.
-	target_compile_options(${TARGET_NAME} PRIVATE /W3)
+	if (MSVC)
+		target_compile_options(${TARGET_NAME} PRIVATE /W3)
+	endif()
 
 	set(LIBDXCOMPILER "dxcompiler.dll")
 else ()
