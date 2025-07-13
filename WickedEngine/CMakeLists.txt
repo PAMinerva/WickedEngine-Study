@@ -217,6 +217,8 @@ else()
     set(TARGET_NAME WickedEngine_ext_shaders)
 endif()
 
+# Crea un alias per il target di CMake già esistente, specificato dalla variabile ${TARGET_NAME}. 
+# In pratica, WickedEngine diventa un altro nome per il target definito in ${TARGET_NAME}, che è WickedEngine_Windows.
 add_library(WickedEngine ALIAS ${TARGET_NAME})
 
 # aliases for backwards compatibility
@@ -368,6 +370,8 @@ else ()
 	# Aggiunge la libreria FAudio alla lista delle librerie statiche di WickedEngine.
     set(WICKEDENGINE_STATIC_LIBRARIES ${WICKEDENGINE_STATIC_LIBRARIES} FAudio)
 
+	# PRIVATE specifica che l'opzione è applicata solo al target ${TARGET_NAME} e non ai target che dipendono da esso.
+	# PUBLIC specifica che l'opzione è applicata sia al target stesso sia a tutti i target che linkano a questo target.
     target_link_libraries(WickedEngine_common PUBLIC dl)
 
     set(LIBDXCOMPILER "libdxcompiler.so")
