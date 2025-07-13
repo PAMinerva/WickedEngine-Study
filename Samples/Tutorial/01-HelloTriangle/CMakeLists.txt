@@ -43,6 +43,8 @@ else ()
 
 endif ()
 
+# MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
+# CMAKE_CXX_FLAGS è una variabile che contiene le opzioni di compilazione per il compilatore C++. È usata da CMake per passare argomenti al compilatore.
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 endif()
