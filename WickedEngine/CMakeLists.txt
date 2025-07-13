@@ -172,6 +172,8 @@ add_library(${TARGET_NAME} ${WICKED_LIBRARY_TYPE}
 
 target_precompile_headers(${TARGET_NAME} PRIVATE WickedEngine.h)
 
+# Crea un alias per il target di CMake già esistente, specificato dalla variabile ${TARGET_NAME}. 
+# In pratica, WickedEngine diventa un altro nome per il target definito in ${TARGET_NAME}, che è WickedEngine_Windows.
 add_library(WickedEngine ALIAS ${TARGET_NAME})
 # set_target_properties è un comando di CMake che consente di impostare proprietà su un target.
 # PUBLIC_HEADER è una proprietà speciale che viene utilizzata per definire quali file header dovrebbero essere considerati pubblici e 
@@ -264,6 +266,10 @@ if (WIN32)
 		UNICODE _UNICODE
 	)
 
+	# MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
+	# /W3 è un'opzione di compilazione per MSVC che imposta il livello di warning a 3, che è un livello moderato di avvisi.
+	# /MP abilita la compilazione parallela, permettendo a MSVC di compilare più file sorgente contemporaneamente.
+	# /bigobj è un'opzione di compilazione per MSVC che consente di generare file oggetto più grandi del normale, quando il codice sorgente contiene molti simboli.
 	if (MSVC)
 		add_compile_options(
 			/W3
@@ -301,6 +307,7 @@ else ()
 	# Aggiunge la libreria FAudio alla lista delle librerie statiche di WickedEngine.
 	set(WICKEDENGINE_STATIC_LIBRARIES ${WICKEDENGINE_STATIC_LIBRARIES} FAudio)
 
+	# PRIVATE specifica che l'opzione è applicata solo al target ${TARGET_NAME} e non ai target che dipendono da esso.
 	target_link_libraries(${TARGET_NAME} PRIVATE dl)
 
 	set(LIBDXCOMPILER "libdxcompiler.so")
