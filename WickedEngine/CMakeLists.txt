@@ -181,6 +181,8 @@ add_library(${TARGET_NAME} ${WICKED_LIBRARY_TYPE}
 
 target_precompile_headers(${TARGET_NAME} PRIVATE WickedEngine.h)
 
+# Crea un alias per il target di CMake già esistente, specificato dalla variabile ${TARGET_NAME}. 
+# In pratica, WickedEngine diventa un altro nome per il target definito in ${TARGET_NAME}, che è WickedEngine_Windows.
 add_library(WickedEngine ALIAS ${TARGET_NAME})
 # set_target_properties è un comando di CMake che consente di impostare proprietà su un target.
 # PUBLIC_HEADER è una proprietà speciale che viene utilizzata per definire quali file header dovrebbero essere considerati pubblici e 
@@ -318,6 +320,7 @@ else ()
 	# Aggiunge la libreria FAudio alla lista delle librerie statiche di WickedEngine.
     set(WICKEDENGINE_STATIC_LIBRARIES ${WICKEDENGINE_STATIC_LIBRARIES} FAudio)
 
+	# PRIVATE specifica che l'opzione è applicata solo al target ${TARGET_NAME} e non ai target che dipendono da esso.
     target_link_libraries(${TARGET_NAME} PRIVATE dl)
 
     set(LIBDXCOMPILER "libdxcompiler.so")
