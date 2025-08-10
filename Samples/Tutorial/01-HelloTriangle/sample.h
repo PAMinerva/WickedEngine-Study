@@ -1,13 +1,17 @@
 #pragma once
 
-#include "wiRenderPath3D.h"
+// #include "wiRenderPath3D.h"
+#include "WickedEngine.h"
 
-class MyRender3D : public wi::RenderPath3D
+class SampleRenderPath : public wi::RenderPath3D
 {
     //wi::ecs::Entity triangleMeshEntity;
 
 public:
-    MyRender3D()
+	void Load() override;
+	void Update(float dt) override;
+
+    /*SampleRenderPath()
     {
 		// In an Entity-Component-System (ECS) architecture, entities and components are fundamental concepts:
 		// 
@@ -70,7 +74,7 @@ public:
         auto meshtrans = scene.transforms.GetComponent(triangleMeshEntity);
         meshtrans->Translate(XMFLOAT3(0.0f, -0.2f, 2.0f));
         meshtrans->Scale(XMFLOAT3(1, 1, 1));
-    }
+    }*/
 
     /*void Update(float dt) override
     {
@@ -102,12 +106,21 @@ public:
     }*/
 };
 
- class Sample
+class SampleApp : public wi::Application
 {
 public:
-    MyRender3D render3D;
-    const char *title {"01 - Hello Triangle"};
+    SampleRenderPath render;
+	void Initialize() override
+	{
+		wi::Application::Initialize();
+		render.init(canvas);
+		render.Load();
 
-    wi::RenderPath* GetRenderPath3D() {return &render3D;};
-    const char* GetTitle() {return title;};
+		ActivatePath(&render);
+	}
+
+    // const char *title {"01 - Hello Triangle"};
+
+    // wi::RenderPath* GetRenderPath3D() {return &render;};
+    // const char* GetTitle() {return title;};
 };
