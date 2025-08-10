@@ -9,7 +9,7 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-wi::Application application;					// Application class
+SampleApp application;							// Application class
 
 // Forward declarations of functions included in this code module:
 BOOL                CreateWnd(WCHAR szTitle[], WCHAR szWindowClass[], HINSTANCE hInstance, int nCmdShow);
@@ -92,10 +92,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     application.infoDisplay.colorspace = true;
     application.infoDisplay.device_name = true;
 
-	Sample sample;  // Sample class instance (see Sample contructor)
+	// SampleApp sample;  // Sample class instance (see Sample contructor)
 
-	application.Initialize(); // Initializes the job system to execute the initialization of application components
-	application.ActivatePath(sample.GetRenderPath3D()); // simply store the canvas to the RenderPath object in the Sample class
+	// application.Initialize(); // Initializes the job system to execute the initialization of application components
+	// application.ActivatePath(sample.GetRenderPath3D()); // simply store the canvas to the RenderPath object in the Sample class
 
 
  	MSG msg = { 0 };
