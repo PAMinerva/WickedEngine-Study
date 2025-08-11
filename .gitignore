@@ -230,6 +230,9 @@ compile_commands.json
 
 # MAC:
 xcuserdata/
+# lua_ls
+Lua/
+.luarc.jsonc
 
 # Others
 log.txt
