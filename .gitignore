@@ -229,7 +229,7 @@ wiShaderdump.h
 compile_commands.json
 
 # lua_ls
-Lua/
+.lua/
 .luarc.jsonc
 
 # Others
