@@ -228,6 +228,10 @@ wiShaderdump.h
 .clangd
 compile_commands.json
 
+# lua_ls
+Lua/
+.luarc.jsonc
+
 # Others
 log.txt
 wicked-editor-crash-log.txt
