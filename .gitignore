@@ -232,7 +232,7 @@ compile_commands.json
 # MAC:
 xcuserdata/
 # lua_ls
-Lua/
+.lua/
 .luarc.jsonc
 
 # Others
