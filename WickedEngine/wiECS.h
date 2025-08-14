@@ -275,8 +275,9 @@ namespace wi::ecs
 			}
 		}
 
-		// Create a new component and retrieve a reference to it
-		// Each component type will have its own entities and components vectors, along with its own lookup map
+		// Create a new component and retrieve a reference to it.
+		// Each ComponentManager instance (defined by the Component parameter) will have
+		// its own entities and components vectors, along with its own lookup map.
 		inline Component& Create(Entity entity)
 		{
 			// INVALID_ENTITY is not allowed!

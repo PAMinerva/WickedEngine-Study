@@ -758,18 +758,23 @@ namespace wi::scene
 		}
 		else
 		{
-			// Determine minimum precision for positions:
-			const float target_precision = 1.0f / 1000.0f; // millimeter
+			// Determine minimum precision for positions (see code below)
+			const float target_precision = 1.0f / 1000.0f;
+			// Try to set a format where each coordinate is 16 bits
 			position_format = Vertex_POS16::FORMAT;
 			for (size_t i = 0; i < vertex_positions.size(); ++i)
 			{
 				const XMFLOAT3& pos = vertex_positions[i];
 				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i]; // only relevant if you want the wind affects vertex position
 
+				
+				// Convert position coordinates from a 32 bit to a 16 bit representation.
+				// pos is passed by value so the original value is not modified.
+				// Here it only checks if the conversion is lossless.
 				Vertex_POS16 v;
 				v.FromFULL(aabb, pos, wind);
 				XMFLOAT3 p = v.GetPOS(aabb);
-				if ( // check if the float 32 bit to unotm 16 bit conversion and vice versa is lossless
+				if ( // check if the conversion is lossless
 					std::abs(p.x - pos.x) <= target_precision &&
 					std::abs(p.y - pos.y) <= target_precision &&
 					std::abs(p.z - pos.z) <= target_precision &&
@@ -861,8 +866,8 @@ namespace wi::scene
 		}
 		const uint64_t alignment = device->GetMinOffsetAlignment(&bd);
 
-		// This buffer will contain various vertex data, and index data as well.
-		// Each data type will be aligned as if we had multiple buffers included in one.
+		// The buffer created will contain various vertex data, and index data as well.
+		// Each data type will be aligned since we will have multiple buffers included in one.
 		bd.size =
 			align(uint64_t(vertex_positions.size() * position_stride), alignment) + // position will be first to have 0 offset for flexible alignment!
 			align(uint64_t(provoke.size() * GetProvokingIndexStride()), alignment) +
@@ -1006,6 +1011,8 @@ namespace wi::scene
 			uint64_t buffer_offset = 0ull;
 
 			// vertexBuffer - POSITION + WIND:
+			// Each vertex attribute will be used as a separate buffer with its own shader resource view (SRV),
+			// so we need to align each buffer region properly and update their offsets as well.
 			switch (position_format)
 			{
 			case Vertex_POS16::FORMAT:
@@ -1363,9 +1370,17 @@ namespace wi::scene
 		// The suballocation strategy is used to have all mesh buffers reside in a global buffer
 		//	With this we can avoid rebinding the index buffer for every mesh and can work with purely offsets
 		//	Though the index buffer will still need to be rebound if the index format changes, but that happens less frequently
+		//	Allocate a big chunk of GPU memory and create placed resources in it with the help of the OffsetAllocator library
+		//	to get an offset to a memory page in that placed resource.
 		wi::renderer::BufferSuballocation suballoc = wi::renderer::SuballocateGPUBuffer(bd.size);
 		if (suballoc.IsValid())
 		{
+			// Create a staging buffer with vertex and index data and copy it to a specific offset in the placed resource
+			// created above (generalBuffer will hold a pointer to it)
+			// subballoc.alias holds a reference to the big heap in GPU memory where the placed resource resides,
+			// suballoc.allocation.byte_offset holds the offset to the beginning of that heap where the buffer
+			// we are creating here will start.
+			// It uses the term alias because the buffer will be aliased with the big placed resources.
 			bool success = device->CreateBuffer2(&bd, init_callback, &generalBuffer, &suballoc.alias, suballoc.allocation.byte_offset);
 			assert(success);
 			device->SetName(&generalBuffer, "MeshComponent::generalBuffer (suballocated)");
@@ -1383,9 +1398,16 @@ namespace wi::scene
 
 		// Create SRVs for the various vertex buffers and index buffer contained in generalBuffer:
 		// Each SRV will expose the corresponding buffer data (offset and size) in generalBuffer.
-		// If bindless resources are used, descriptor_srv will store the bindless index of the descriptor in the bindless portion of the shader-visible heap.
-		// Otherwise, descriptor_srv will store an integer to index in an array of SingleDescriptor internally stored in generalBuffer,
-		// where each SingleDescriptor stores a handle to a descriptor in the corresponding descriptor heap.
+		// If the subresource represents the whole resource, then subresource_srv will store -1 and
+		// descriptor_srv will store the bindless index of the descriptor in the bindless portion of
+		// the shader-visible heap, if bindless is available. Otherwise, if bindless is not available,
+		// descriptor_srv will store -1 so that the engine can revert to a handle to a descriptor in
+		// a local descriptor heap (created through the AllocationHandler shared pointer declared in SingleDescriptor).
+		// If the subresource is actually a subresource of the whole resource, subresource_srv will store an integer to
+		// index in an array of SingleDescriptor(s) internally stored in generalBuffer, where each SingleDescriptor can
+		// still stores a valid bindless index (if bindless is available) or -1 to revert to a handle.
+		// In any case, GetDescriptorIndex() will use subresource_srv to return the index stored in the SingleDescriptor
+		// created in createSubresource(), wich will be either a bindless index or -1.
 		// assert(ib.IsValid());
 
 		const Format ib_format = GetIndexFormat() == IndexBufferFormat::UINT32 ? Format::R32_UINT : Format::R16_UINT;

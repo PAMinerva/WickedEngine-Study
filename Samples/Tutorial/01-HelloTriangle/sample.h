@@ -17,7 +17,6 @@ public:
 	void Initialize() override
 	{
 		wi::Application::Initialize();
-		render.init(canvas);
 		render.Load();
 
 		ActivatePath(&render);

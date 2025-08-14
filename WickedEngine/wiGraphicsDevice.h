@@ -30,6 +30,16 @@ namespace wi::graphics
 	static constexpr uint32_t DESCRIPTORBINDER_ALL_COUNT = DESCRIPTORBINDER_CBV_COUNT + DESCRIPTORBINDER_SRV_COUNT + DESCRIPTORBINDER_UAV_COUNT + DESCRIPTORBINDER_SAMPLER_COUNT;
 	struct DescriptorBindingTable
 	{
+    // SRV array is used for binding resources to binding slots by
+    // associanting each resource index with a binding slot (shader register).
+    // SRV_index array is used for binding binding slots to descriptor indices
+    // (to index in the Resource_DX12::subresources_srv array), by associating each
+    // descriptor index index with a binding slot (shader register).
+    // Max 16 SRV descriptor can be bound at once, but this can be increased by using
+    // bindless descriptors.
+    // It uses offsets for CBVs instead of indices since we dont' have subresources for constant buffers,
+    // but constant buffers can share the same memory space, so they need a dynamic
+    // offset to be able to access the correct data.
 		GPUBuffer CBV[DESCRIPTORBINDER_CBV_COUNT];
 		uint64_t CBV_offset[DESCRIPTORBINDER_CBV_COUNT] = {};
 		GPUResource SRV[DESCRIPTORBINDER_SRV_COUNT];
