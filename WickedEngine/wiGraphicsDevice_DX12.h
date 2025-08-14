@@ -486,6 +486,10 @@ namespace wi::graphics
 		DescriptorHeapGPU descriptorheap_res;
 		DescriptorHeapGPU descriptorheap_sam;
 
+		// AllocationHandle stores different instances of the internal DescriptorAllocator struct,
+		// each creating descriptor heaps for a specific descriptor type,
+		// saving some handles to descriptors in these heaps (see block_allocate function),
+		// and returning these handles when the allocate function is called.
 		struct AllocationHandler
 		{
 			Microsoft::WRL::ComPtr<D3D12MA::Allocator> allocator;
