@@ -57,6 +57,7 @@ endif()
 
 if (WIN32)
     if (MSVC)
+		# /bigobj è un'opzione di compilazione per MSVC che consente di generare file oggetto più grandi del normale, quando il codice sorgente contiene molti simboli.
         add_compile_options(
             /bigobj
         )
