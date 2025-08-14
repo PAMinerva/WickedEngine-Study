@@ -1339,8 +1339,17 @@ namespace dx12_internal
 		std::shared_ptr<GraphicsDevice_DX12::AllocationHandler> allocationhandler;
 		ComPtr<D3D12MA::Allocation> allocation;
 		ComPtr<ID3D12Resource> resource;
+		// Default shader resource view (SRV) descriptor for this resource.
+		// Represents the main view, typically used to access the entire resource in shaders.
+		// For more information about how resource views are created, indexed, and bound,
+		// refer to the implementation of CreateResource, GetDescriptorIndex, and DescriptorBinder::flush.
 		SingleDescriptor srv;
 		SingleDescriptor uav;
+		// Additional shader resource view (SRV) descriptors representing alternative views
+		// into the resource (e.g., specific mips, array slices, or format reinterpretations).
+		// These allow binding different subresources or view configurations as needed by the application.
+		// For more information about how resource views are created, indexed, and bound,
+		// refer to the implementation of CreateResource, GetDescriptorIndex, and DescriptorBinder::flush.
 		wi::vector<SingleDescriptor> subresources_srv;
 		wi::vector<SingleDescriptor> subresources_uav;
 		SingleDescriptor uav_raw;
@@ -1797,7 +1806,7 @@ std::mutex queue_locker;
 				if (stats.descriptorCopyCount == 1 && param.DescriptorTable.pDescriptorRanges[0].RangeType != D3D12_DESCRIPTOR_RANGE_TYPE_CBV)
 				{
 					// This is a special case of 1 descriptor per table. This doesn't need copying, but we can just reference single descriptors by their index
-					//	because descriptor index was created already in shader visible descriptor heap for bindless access (see, for example,
+					//	because descriptor index to shader visible descriptor heap element was created already for bindless access (see, for example,
 					//  wii:Scene::MeshComponent::CreateRenderData, especially where CreateSubresource is called, which in turn invoke SingleDescriptor::init,
 					//  that copy the descriptor in the bindless portion of the shader-visible heap).
 					// We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
@@ -1882,28 +1891,45 @@ std::mutex queue_locker;
 					const uint32_t wrap_effective_size = heap.heapDesc.NumDescriptors - bindless_capacity - wrap_reservation;
 					assert(wrap_reservation >= stats.descriptorCopyCount); // for correct lockless wrap behaviour
 
+					// std::atomic<T>::fetch_add returns the value before the addition.
 					const uint64_t offset = heap.allocationOffset.fetch_add(stats.descriptorCopyCount);
 					const uint64_t wrapped_offset = offset % wrap_effective_size;
 					const uint32_t ringoffset = (bindless_capacity + (uint32_t)wrapped_offset) * descriptorSize;
 					const uint64_t wrapped_offset_end = wrapped_offset + stats.descriptorCopyCount;
 
 					// Check that gpu offset doesn't intersect with our newly allocated range, if it does, we need to wait until gpu finishes with it:
-					//	First check is with the cached completed value to avoid API call into fence object
+					// First check is with the cached completed value to avoid API call into fence object
 					// See DescriptorHeapGPU::SignalGPU in the header file for more info.
 					// Usually, wrapped_offset should be greater than wrapped_gpu_offset (the end of the GPU range), since wrapped_offset is set CPU side
 					// while wrapped_gpu_offset GPU side. Otherwise, wrapped_offset is wrapped around to zero, and we need to wait until GPU finishes with
 					// the range intersecting with the newly allocated range.
-					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range is in the middle of the GPU one.
+					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range
+					// should be in the middle of the GPU one. Otherwise, if wrapped_gpu_offset is greater than wrapped_offset_end,
+					// then the newly allocated range is completely before the GPU one, and we don't need to wait.
 					uint64_t wrapped_gpu_offset = heap.cached_completedValue % wrap_effective_size;
 					if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 					{
 						// Second check is with current fence value with API call:
+						// If the first check using cached_completedValue was true, then a possible conflit with
+						// a GPU range can occur, however we need to check the actual fence value to check if
+						// the conflict is real or not.
+						// Note: cached_completedValue is the last DescriptorHeapGPU::allocationOffset value encountered
+						// by the GPU (see DescriptorHeapGPU::SignalGPU).
+						// So here we need to check if the conflit detected above is still relevant now.
+						// Indeed, in the meantime, the GPU could have finished the submitted commands, meaning that the
+						// range we are trying to allocate here is now available again.
+						// Note: the range we are trying to allocate here are available per frame
+						// (each submit can allocate its own ranges and after the frame is finished, that rangea
+						// are free to be used again), but we need to wait until the GPU finishes with them.
+						// This make sense since GPU resource are also created\allocated and destroyed per frame.
 						wrapped_gpu_offset = heap.fence->GetCompletedValue() % wrap_effective_size;
 						if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 						{
 							// Third step is actual wait until GPU updates fence so that requested descriptors are free:
-							// Indeed, the range of descriptors we are trying to allocate is available per draw (each draw can allocate its own range
-							// and after the draw is finished, the range is free to be used again), but we need to wait until the GPU finishes with it.
+							// nullptr event handle will simply wait immediately:
+							// Remarks: If hEvent is a null handle, then this API will not return until the specified
+							// fence value(s) have been reached. See:
+							// https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12fence-seteventoncompletion#remarks
 							dx12_check(heap.fence->SetEventOnCompletion(heap.fenceValue, nullptr));
 						}
 					}
@@ -5167,21 +5193,29 @@ std::mutex queue_locker;
 				srv_desc.Buffer.NumElements = UINT(std::min(size, desc.size - offset) / stride);
 			}
 
-			// Create a heap and a descriptor in it for the resource.
-			// If bindless is available, the descriptor is also copied to the global shader visible heap.
-			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
-			// and the descriptor index in the global shader visible heap if bindless is used.
+			// See SingleDescriptor::init() for details on the process below:
+			// This creates a descriptor for the resource in a local descriptor heap.
+			// If bindless is available, the descriptor is also copied to the global shader-visible heap
+			// and receives a bindless descriptor index.
+			// The SingleDescriptor instance will hold (internally) the handle of the allocated heap slot in
+			// the local descriptor heap, and (if bindless) the descriptor index in the global shader-visible heap.
 			SingleDescriptor descriptor;
 			descriptor.init(this, srv_desc, internal_state->resource.Get());
 
+			// if internal_state->srv is not valid (that is, if the resource does not have a SingleDescriptor associated with it yet),
+			// then we store the current SingleDescriptor in internal_state->srv.
+			// This will be used to describe the whole resource.
 			if (!internal_state->srv.IsValid())
 			{
 				internal_state->srv = descriptor; // for bindless, this will also contain the descriptor index in the global shader visible heap
 				return -1;
 			}
-			// If internal_state->srv is already valid (that is, if the resource already has a SingleDescriptor associated with it),
+
+			// If internal_state->srv was already valid (that is, if the resource already has a SingleDescriptor associated with it),
 			// then we store the current SingleDescriptor in the subresources_srv array.
-			// This is necessary because ???
+			// This is necessary because, as explained for Resource_DX12::srv and Resource_DX12::subresources_srv,
+			// if we already have a SingleDescriptor associated with the resource that describes the whole resource,
+			// then we need to create a new SingleDescriptor for the subresource, and store it in the subresources_srv array.
 			internal_state->subresources_srv.push_back(descriptor);
 			return int(internal_state->subresources_srv.size() - 1); // return the index of the SingleDescriptor in the subresources_srv array
 		}
