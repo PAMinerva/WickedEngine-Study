@@ -97,6 +97,10 @@ project(WickedEngine)
 if (WIN32)
     set(PLATFORM "Windows")
     add_compile_definitions(WIN32=1) # aggiunge definizione da usare in fase di compilazione
+
+	# MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
+	# /W3 è un'opzione di compilazione per MSVC che imposta il livello di warning a 3, che è un livello moderato di avvisi.
+	# /MP abilita la compilazione parallela, permettendo a MSVC di compilare più file sorgente contemporaneamente.
     if (MSVC)
         add_compile_options(
             /W3
