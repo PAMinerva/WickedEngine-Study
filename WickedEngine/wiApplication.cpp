@@ -68,6 +68,7 @@ namespace wi
 		}
 
 		// Fade manager will activate on fadeout
+		// Start sets the function passed as a lambda to the FadeManager::onFade member.
 		fadeManager.Start(fadeSeconds, fadeColor, [this, component]() {
 
 			if (activePath != nullptr)
@@ -82,6 +83,7 @@ namespace wi
 			activePath = component;
 		}, fadetype);
 
+		// onFade is called here, so that the component param passed to Start is set to activePath.
 		fadeManager.Update(0); // If user calls ActivatePath without fadeout, it will be instant
 	}
 

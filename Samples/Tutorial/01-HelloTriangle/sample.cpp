@@ -33,6 +33,11 @@ void SampleRenderPath::Load()
 
 	auto triangleMeshEntity = scene.Entity_CreateMesh("triangle");
 
+    // We store the triangle mesh entity in meshID for later access.
+    // Without this, there would be no way to determine which mesh an object is using,
+    // as the association between objects and meshes is only maintained by
+    // ComponentManager<ObjectComponent>, which is not directly accessible
+    // from an ObjectComponent instance.
 	auto& objectTriangle = scene.objects.Create(triangleMeshEntity);
 	objectTriangle.meshID = triangleMeshEntity;
 
@@ -40,8 +45,8 @@ void SampleRenderPath::Load()
 	meshTriangle.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
 	meshTriangle.subsets.back().materialID = materialEntity;
 	meshTriangle.indices.resize(3);
-	meshTriangle.subsets.back().indexOffset = (uint32_t)0;
-	meshTriangle.subsets.back().indexCount = (uint32_t)3;
+	meshTriangle.subsets.back().indexOffset = 0;
+	meshTriangle.subsets.back().indexCount = 3;
 	meshTriangle.indices[0] = 0;
 	meshTriangle.indices[1] = 2;
 	meshTriangle.indices[2] = 1;
