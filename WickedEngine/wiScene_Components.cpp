@@ -750,18 +750,22 @@ namespace wi::scene
 		}
 		else
 		{
-			// Determine minimum precision for positions:
-			const float target_precision = 1.0f / 1000.0f; // millimeter
+			// Determine minimum precision for positions (see code below)
+			const float target_precision = 1.0f / 1000.0f;
+			// Try to set a format where each coordinate is 16 bits
 			position_format = Vertex_POS16::FORMAT;
 			for (size_t i = 0; i < vertex_positions.size(); ++i)
 			{
 				const XMFLOAT3& pos = vertex_positions[i];
 				const uint8_t wind = vertex_windweights.empty() ? 0xFF : vertex_windweights[i]; // only relevant if you want the wind affects vertex position
 				
+				// Convert position coordinates from a 32 bit to a 16 bit representation.
+				// pos is passed by value so the original value is not modified.
+				// Here it only checks if the conversion is lossless.
 				Vertex_POS16 v;
 				v.FromFULL(aabb, pos, wind);
 				XMFLOAT3 p = v.GetPOS(aabb);
-				if ( // check if the float 32 bit to unotm 16 bit conversion and vice versa is lossless
+				if ( // check if the conversion is lossless
 					std::abs(p.x - pos.x) <= target_precision &&
 					std::abs(p.y - pos.y) <= target_precision &&
 					std::abs(p.z - pos.z) <= target_precision &&
@@ -845,8 +849,8 @@ namespace wi::scene
 		}
 		const uint64_t alignment = device->GetMinOffsetAlignment(&bd);
 
-		// This buffer will contain various vertex data, and index data as well.
-		// Each data type will be aligned as if we had multiple buffers included in one.
+		// The buffer created will contain various vertex data, and index data as well.
+		// Each data type will be aligned since we will have multiple buffers included in one.
 		bd.size =
 			AlignTo(vertex_positions.size() * position_stride, alignment) + // position will be first to have 0 offset for flexible alignment!
 			AlignTo(indices.size() * GetIndexStride(), alignment) +
@@ -1306,6 +1310,7 @@ namespace wi::scene
 		wi::renderer::BufferSuballocation suballoc = wi::renderer::SuballocateGPUBuffer(bd.size);
 		if (suballoc.allocation.IsValid())
 		{
+			// Create a staging buffer with vertex and index data and copy it to a GPU buffer (generalBuffer holds a pointer to it)
 			bool success = device->CreateBuffer2(&bd, init_callback, &generalBuffer, &suballoc.alias, suballoc.allocation.byte_offset);
 			assert(success);
 			device->SetName(&generalBuffer, "MeshComponent::generalBuffer (suballocated)");
