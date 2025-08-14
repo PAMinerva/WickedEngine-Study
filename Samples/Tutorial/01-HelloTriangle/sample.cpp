@@ -33,6 +33,11 @@ void SampleRenderPath::Load()
 
 	auto triangleMeshEntity = scene.Entity_CreateMesh("triangle");
 
+    // We store the triangle mesh entity in meshID for later access.
+    // Without this, there would be no way to determine which mesh an object is using,
+    // as the association between objects and meshes is only maintained by
+    // ComponentManager<ObjectComponent>, which is not directly accessible
+    // from an ObjectComponent instance.
 	auto& objectTriangle = scene.objects.Create(triangleMeshEntity);
 	objectTriangle.meshID = triangleMeshEntity;
 
@@ -40,8 +45,8 @@ void SampleRenderPath::Load()
 	meshTriangle.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
 	meshTriangle.subsets.back().materialID = materialEntity;
 	meshTriangle.indices.resize(3);
-	meshTriangle.subsets.back().indexOffset = (uint32_t)0;
-	meshTriangle.subsets.back().indexCount = (uint32_t)3;
+	meshTriangle.subsets.back().indexOffset = 0;
+	meshTriangle.subsets.back().indexCount = 3;
 	meshTriangle.indices[0] = 0;
 	meshTriangle.indices[1] = 2;
 	meshTriangle.indices[2] = 1;
@@ -54,9 +59,13 @@ void SampleRenderPath::Load()
 	meshTriangle.vertex_colors[1] = wi::math::CompressColor(XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));  // rgba Green;
 	meshTriangle.vertex_colors[2] = wi::math::CompressColor(XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f));  // rgba Blue;
 
-	// Create vertex and index buffers in a single general buffer accessible by the GPU.
+	// Create vertex and index buffers as aliasing resources in a single general buffer accessible by the GPU.
 	// Also create an SRV for each buffer type (indices, positions, colors, etc) in the general buffer
-	// and put them into a heap (bindless if slots are available) for shader access.
+	// and put them into a heap (bindless if slots are available in the shader-visible descriptor heap
+	// associated with the command list, otherwise put them into a local descriptor heap accessible
+	// through SingleDescriptor::allocationhandler; we can do it via the SingleDescriptor object
+	// created in CreateRenderData and stored as an element of the subresources_srv vector of the 
+	// Resource_DX12 represeting the general buffer resource).
 	meshTriangle.CreateRenderData();
 
 	scene.transforms.Create(triangleMeshEntity);

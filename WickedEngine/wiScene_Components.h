@@ -898,12 +898,20 @@ namespace wi::scene
 			uint16_t z = 0;
 			uint16_t w = 0;
 
-			// Convert a full 32-bit float to 16-bit unorm vertex position:
-			// Calculate the vertex position relative to the AABB to normalize it to [0,1] range and remap it to 16-bit unorm
+			// Convert a full 32-bit float to 16-bit unorm for each coordinate of the vertex position:
+			// Calculate the vertex position relative to the AABB containing it to normalize the coordinate
+			// values to [0,1] range and remap it to an integer representation of 16-bit unorm by multiplying with 65535.0f.
+			// Indeed 16-bit unorm can only represent values in the range of [0/65535, 65535/65535] = [0, 1]
+			// since 16-bit unorm can only represent 2^16 = 65536 discrete values.
+			// So, by multiplying with 65535.0f and discarding the fractional part, we are remaping the [0,1]
+			// range to [0,65535], which is the integer representation of the 16-bit unorm value.
+			// We can retrieve it later by simply dividing by 65535.0f to get back to the [0,1] range.
 			constexpr void FromFULL(const wi::primitive::AABB& aabb, XMFLOAT3 pos, uint8_t wind)
 			{
-				pos = wi::math::InverseLerp(aabb._min, aabb._max, pos); // UNORM remap
-				x = uint16_t(pos.x * 65535.0f);
+				// InvLerp: (pos - aabb._min) / (aabb._max - aabb._min)
+				// pos is traslated by -aabb._min, then scaled by the inverse of AABB size
+				pos = wi::math::InverseLerp(aabb._min, aabb._max, pos); // map to [0,1] floating range
+				x = uint16_t(pos.x * 65535.0f);                         // then to [0,65535] integer range
 				y = uint16_t(pos.y * 65535.0f);
 				z = uint16_t(pos.z * 65535.0f);
 				w = uint16_t((float(wind) / 255.0f) * 65535.0f);
@@ -914,9 +922,9 @@ namespace wi::scene
 				return XMLoadFloat3(&v);
 			}
 
-			// Convert 16-bit unorm to full 32-bit float position:
-			// Map the 16-bit unorm coordinates to [0,1] range and then remap the result to the 3D space using Lerp,
-			// which invert the InverseLerp operation in executed FromFULL
+			// Convert the integer representation to get the 16-bit unorm value in the range of [0,1]
+			// (see FromFULL above for details) and then remap the result to the 3D object space using Lerp,
+			// which invert the InverseLerp operation executed by FromFULL
 			constexpr XMFLOAT3 GetPOS(const wi::primitive::AABB& aabb) const
 			{
 				XMFLOAT3 v = XMFLOAT3(
@@ -924,6 +932,11 @@ namespace wi::scene
 					float(y) / 65535.0f,
 					float(z) / 65535.0f
 				);
+
+				// Lerp: aabb._min * (1 - v) + aabb._max * v
+				//       = aabb._min - aabb._min * v + aabb._max * v
+				//       = aabb._min + v * (aabb._max - aabb._min)
+				// v is scaled to the size of the AABB, then translated by +aabb._min
 				return wi::math::Lerp(aabb._min, aabb._max, v);
 			}
 			constexpr uint8_t GetWind() const
@@ -1052,6 +1065,7 @@ namespace wi::scene
 		struct Vertex_COL
 		{
 			uint32_t color = 0;
+			// Since it's static, this member is not part of the structure and does not affect its size
 			static constexpr wi::graphics::Format FORMAT = wi::graphics::Format::R8G8B8A8_UNORM;
 		};
 		struct Vertex_NOR
