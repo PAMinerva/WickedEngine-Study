@@ -54,6 +54,7 @@ if (WIN32)
     # TODO: Choose whether to use SDL2 on windows as well
     set(TARGET_NAME WickedEngine_Windows)
 
+	# /bigobj è un'opzione di compilazione per MSVC che consente di generare file oggetto più grandi del normale, quando il codice sorgente contiene molti simboli.
     if (MSVC)
         add_compile_options(
             /bigobj
