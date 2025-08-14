@@ -276,8 +276,9 @@ namespace wi::ecs
 			}
 		}
 
-		// Create a new component and retrieve a reference to it
-		// Each component type will have its own entities and components vectors, along with its own lookup map
+		// Create a new component and retrieve a reference to it.
+		// Each ComponentManager instance (defined by the Component parameter) will have
+		// its own entities and components vectors, along with its own lookup map.
 		inline Component& Create(Entity entity)
 		{
 			// INVALID_ENTITY is not allowed!
@@ -286,7 +287,7 @@ namespace wi::ecs
 			// Only one of this component type per entity is allowed!
 			assert(lookup.find(entity) == lookup.end());
 
-			// Entity count must always be the same as the number of coponents!
+			// Entity count must always be the same as the number of components!
 			assert(entities.size() == components.size());
 			assert(lookup.size() == components.size());
 
