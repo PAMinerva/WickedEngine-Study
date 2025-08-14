@@ -2782,6 +2782,7 @@ BufferSuballocation SuballocateGPUBuffer(uint64_t size)
 	BufferSuballocation allocation;
 	for (auto& block : suballocator.blocks)
 	{
+		// Calculate the byte offset of the sub-allocation within the big buffer created as a placed resource
 		allocation.allocation = block.allocator.allocate(size);
 		if (allocation.allocation.IsValid())
 		{
@@ -2811,6 +2812,8 @@ BufferSuballocation SuballocateGPUBuffer(uint64_t size)
 	}
 	desc.alignment = device->GetMinOffsetAlignment(&desc);
 	auto& block = suballocator.blocks.emplace_back();
+	// Allocate a huge heap in GPU memory and create a placed resource that spans the whole heap starting from offset 0.
+	// block.buffer will hold a pointer to that placed resource.
 	bool success = device->CreateBuffer(&desc, nullptr, &block.buffer);
 	assert(success);
 	device->SetName(&block.buffer, "GPUSubAllocator");

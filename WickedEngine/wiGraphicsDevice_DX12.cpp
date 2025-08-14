@@ -1176,7 +1176,7 @@ namespace dx12_internal
 		wi::allocator::shared_ptr<GraphicsDevice_DX12::AllocationHandler> allocationhandler;
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = {};
 		D3D12_DESCRIPTOR_HEAP_TYPE type = {};
-		int index = -1; // bindless
+		int index = -1; // bindless if >=0
 
 		bool IsValid() const { return handle.ptr != 0; }
 		void init(const GraphicsDevice_DX12* device, const D3D12_CONSTANT_BUFFER_VIEW_DESC& cbv)
@@ -1210,6 +1210,7 @@ namespace dx12_internal
 			allocationhandler->device->CreateShaderResourceView(res, &srv, handle);
 
 			// bindless allocation:
+			// Check if there are any free bindless descriptor indices available.
 			allocationhandler->destroylocker.lock();
 			if (!allocationhandler->free_bindless_res.empty())
 			{
@@ -1217,6 +1218,9 @@ namespace dx12_internal
 				allocationhandler->free_bindless_res.pop_back();
 			}
 			allocationhandler->destroylocker.unlock();
+			
+			// If a free index was found, copy the descriptor to the bindless heap, the shader-visible one
+			// stored in the GraphicsDevice_DX12 instance passed as parameter.
 			if (index >= 0)
 			{
 				assert(index < BINDLESS_RESOURCE_CAPACITY);
@@ -1295,6 +1299,8 @@ namespace dx12_internal
 					allocationhandler->descriptors_res.free(handle);
 
 					// bindless free:
+					// If the descriptor was bindless, the corresponding index in the shader-visible heap
+					// is stored so that it can be reused later for another descriptor allocation.
 					if (index >= 0)
 					{
 						allocationhandler->destroyer_bindless_res.push_back(std::make_pair(index, allocationhandler->framecount));
@@ -1337,10 +1343,22 @@ namespace dx12_internal
 	struct Resource_DX12
 	{
 		wi::allocator::shared_ptr<GraphicsDevice_DX12::AllocationHandler> allocationhandler;
+		// Represents the memory allocation where the resource resides.
+		// It may be either implicit memory heap committed to a single resource or
+		// a specific region of a bigger heap plus unique offset for a placed resource.
 		ComPtr<D3D12MA::Allocation> allocation;
 		ComPtr<ID3D12Resource> resource;
+		// Default shader resource view (SRV) descriptor for this resource.
+		// Represents the main view, typically used to access the entire resource in shaders.
+		// For more information about how resource views are created, indexed, and bound,
+		// refer to the implementation of CreateResource, GetDescriptorIndex, and DescriptorBinder::flush.
 		SingleDescriptor srv;
 		SingleDescriptor uav;
+		// Additional shader resource view (SRV) descriptors representing alternative views
+		// into the resource (e.g., specific mips, array slices, or format reinterpretations).
+		// These allow binding different subresources or view configurations as needed by the application.
+		// For more information about how resource views are created, indexed, and bound,
+		// refer to the implementation of CreateResource, GetDescriptorIndex, and DescriptorBinder::flush.
 		wi::vector<SingleDescriptor> subresources_srv;
 		wi::vector<SingleDescriptor> subresources_uav;
 		SingleDescriptor uav_raw;
@@ -1752,7 +1770,7 @@ std::mutex queue_locker;
 				if (stats.descriptorCopyCount == 1 && param.DescriptorTable.pDescriptorRanges[0].RangeType != D3D12_DESCRIPTOR_RANGE_TYPE_CBV)
 				{
 					// This is a special case of 1 descriptor per table. This doesn't need copying, but we can just reference single descriptors by their index
-					//	because descriptor index was created already in shader visible descriptor heap for bindless access (see, for example,
+					//	because descriptor index to shader visible descriptor heap element was created already for bindless access (see, for example,
 					//  wii:Scene::MeshComponent::CreateRenderData, especially where CreateSubresource is called, which in turn invoke SingleDescriptor::init,
 					//  that copy the descriptor in the bindless portion of the shader-visible heap).
 					// We don't do this for constant buffers, because that needs to support dynamic offset (so we always create descriptor for them on the fly)
@@ -1837,54 +1855,95 @@ std::mutex queue_locker;
 					const uint32_t wrap_effective_size = heap.heapDesc.NumDescriptors - bindless_capacity - wrap_reservation;
 					assert(wrap_reservation >= stats.descriptorCopyCount); // for correct lockless wrap behaviour
 
+					// std::atomic<T>::fetch_add returns the value before the addition.
 					const uint64_t offset = heap.allocationOffset.fetch_add(stats.descriptorCopyCount);
 					const uint64_t wrapped_offset = offset % wrap_effective_size;
 					const uint32_t ringoffset = (bindless_capacity + (uint32_t)wrapped_offset) * descriptorSize;
 					const uint64_t wrapped_offset_end = wrapped_offset + stats.descriptorCopyCount;
 
 					// Check that gpu offset doesn't intersect with our newly allocated range, if it does, we need to wait until gpu finishes with it:
-					//	First check is with the cached completed value to avoid API call into fence object
+					// First check is with the cached completed value to avoid API call into fence object
+
+					// First check is with the cached completed value to avoid API call into fence object
 					// See DescriptorHeapGPU::SignalGPU in the header file for more info.
 					// Usually, wrapped_offset should be greater than wrapped_gpu_offset (the end of the GPU range), since wrapped_offset is set CPU side
 					// while wrapped_gpu_offset GPU side. Otherwise, wrapped_offset is wrapped around to zero, and we need to wait until GPU finishes with
-					// the range intersecting with the newly allocated range.
-					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range is in the middle of the GPU one.
+					// the range intersecting with an already allocated range.
+					// (wrapped_gpu_offset < wrapped_offset_end) also needs to be true to specify that the newly allocated range
+					// should be in the middle of the GPU one. Otherwise, if wrapped_gpu_offset is greater than wrapped_offset_end,
+					// then the newly allocated range is completely before the GPU one, and we don't need to wait.
 					uint64_t wrapped_gpu_offset = heap.cached_completedValue % wrap_effective_size;
 					if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 					{
 						// Second check is with current fence value with API call:
+						// If the first check using cached_completedValue was true, then a possible conflit with
+						// a GPU range can occur, however we need to check the actual fence value to check if
+						// the conflict is real or not.
+						// Note: cached_completedValue is the last DescriptorHeapGPU::allocationOffset value encountered
+						// by the GPU (see DescriptorHeapGPU::SignalGPU).
+						// So here we need to check if the conflit detected above is still relevant now.
+						// Indeed, in the meantime, the GPU could have finished the submitted commands, meaning that the
+						// range we are trying to allocate here is now available again.
+						// Note: the range we are trying to allocate here are available per frame
+						// (each submit can allocate its own ranges and after the frame is finished, that ranges
+						// are free to be used again), but we need to wait until the GPU finishes with them.
+						// This make sense since GPU resource are also created\allocated and destroyed per frame.
 						wrapped_gpu_offset = heap.fence->GetCompletedValue() % wrap_effective_size;
 						if ((wrapped_offset < wrapped_gpu_offset) && (wrapped_gpu_offset < wrapped_offset_end))
 						{
 							// Third step is actual wait until GPU updates fence so that requested descriptors are free:
-							// Indeed, the range of descriptors we are trying to allocate is available per draw (each draw can allocate its own range
-							// and after the draw is finished, the range is free to be used again), but we need to wait until the GPU finishes with it.
+							// nullptr event handle will simply wait immediately:
+							// Remarks: If hEvent is a null handle, then this API will not return until the specified
+							// fence value(s) have been reached. See:
+							// https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12fence-seteventoncompletion#remarks
 							dx12_check(heap.fence->SetEventOnCompletion(heap.fenceValue, nullptr));
 						}
 					}
 
+					// Update the GPU and CPU handles to point to the start of the newly allocated range
+					// in the shader-visible heap.
 					gpu_handle.ptr += (size_t)ringoffset;
 					cpu_handle.ptr += (size_t)ringoffset;
 
+					// For each descriptor range in the table...
 					for (UINT i = 0; i < param.DescriptorTable.NumDescriptorRanges; ++i)
 					{
+						// Get a range descriptor
 						const D3D12_DESCRIPTOR_RANGE1& range = param.DescriptorTable.pDescriptorRanges[i];
 						switch (range.RangeType)
 						{
 						case D3D12_DESCRIPTOR_RANGE_TYPE_SRV:
 							assert(range.NumDescriptors <= DESCRIPTORBINDER_SRV_COUNT);
+                            // Copy null descriptors to the shader-visible heap, starting from the first descriptor in the range
+                            // This ensures that if a resource is invalid, the corresponding slot in the heap is not left "dirty"
+							// but instead contains a safe null descriptor.
 							device->device->CopyDescriptorsSimple(range.NumDescriptors, cpu_handle, device->nullSRV, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+							// For each descriptor in the range...
+							// ... copy the actual descriptors to the shader-visible heap.
 							for (UINT idx = 0; idx < range.NumDescriptors; ++idx)
 							{
+								// Calculate the shader register index for the descriptor
+								// and use it to retrieve the corresponding resource from table.
 								const UINT reg = range.BaseShaderRegister + idx;
 								const GPUResource& resource = table.SRV[reg];
 								if (resource.IsValid())
 								{
+									// Tipically, SRVs in descriptor tables are not created with SingleDescriptor::init,
+									// but instead are simply created and stored in SingleDescriptor::srv.
+									// Get the subresource index for the resource, if any,
+									// and retrieve the internal state of the resource.
+									// If the subresource index is negative, it means that the resource is
+									// described as a whole by a single descriptor. In which case,
+									// we use the main SRV descriptor handle to copy the descriptor.
+									// Otherwise, we use the subresource value to index into the
+									// subresources_srv vector, which contains the descriptors
+									// for each subresource of the resource.
 									int subresource = table.SRV_index[reg];
 									auto internal_state = to_internal(&resource);
 									D3D12_CPU_DESCRIPTOR_HANDLE src_handle = subresource < 0 ? internal_state->srv.handle : internal_state->subresources_srv[subresource].handle;
 									device->device->CopyDescriptorsSimple(1, cpu_handle, src_handle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 								}
+								// Move the CPU handle to the next descriptor in the range.
 								cpu_handle.ptr += descriptorSize;
 							}
 							break;
@@ -1917,6 +1976,12 @@ std::mutex queue_locker;
 									uint64_t offset = table.CBV_offset[reg];
 									auto internal_state = to_internal(&buffer);
 
+									// CBVs are not copied to the shader-visible heap since they are not created
+									// the same way as SRVs and UAVs, which can be created using the
+									// SingleDescriptor::init function, which creates them in a local descriptor heap,
+									// and eventually copies them to the shader-visible heap, if bindless is available.
+									// Instead, we create a constant buffer view on the fly since they are not stored
+									// in local descritpor heaps.
 									D3D12_CONSTANT_BUFFER_VIEW_DESC cbv;
 									cbv.BufferLocation = internal_state->gpu_address;
 									cbv.BufferLocation += offset;
@@ -1953,6 +2018,9 @@ std::mutex queue_locker;
 
 				if (graphics)
 				{
+					// Set the descriptor table for graphics pipeline as a root argument for
+					// the current root parameter index using the GPU handle of the descriptor heap
+					// where the descriptors of the ranges in the table were copied to.
 					graphicscommandlist->SetGraphicsRootDescriptorTable(
 						root_parameter_index,
 						gpu_handle
@@ -3333,7 +3401,7 @@ std::mutex queue_locker;
 	{
 		auto internal_state = wi::allocator::make_shared<Resource_DX12>();
 		internal_state->allocationhandler = allocationhandler;
-		buffer->internal_state = internal_state;
+		buffer->internal_state = internal_state; // now we can use the local internal_state to fill in the buffer details
 		buffer->type = GPUResource::Type::BUFFER;
 		buffer->mapped_data = nullptr;
 		buffer->mapped_size = 0;
@@ -3396,6 +3464,69 @@ std::mutex queue_locker;
 			// Aliasing memory pool must not be a committed resource because that uses implicit heap which returns nullptr,
 			//	thus it cannot be offsetted. This is why we create custom allocation here which will never be committed resource
 			//	(since it has no resource)
+			//
+			// Placed Resource:
+			//                              +------------+
+			//                              |  Resource  |
+			//                              +------------+
+			//                                    |
+			//  GPU memory                        v
+			//  +---------------+----------+--------------+-------------+-------------+
+			//  |               |          |              |             |             |
+			//  +---------------+----------+--------------+-------------+-------------+
+			//                  |_______________________________________|
+			//                                    Heap
+			//
+			// A placed resource is explicitly placed in a heap at a specific offset within the heap.
+			// Before a placed resource can be created, first a heap is created using the ID3D12Device::CreateHeap method.
+			// The placed resource is then created inside the heap using the ID3D12Device::CreatePlacedResource method.
+			//
+			// Although placed resource provide better performance because the heap does not need to be allocated from
+			// global GPU memory for each resource, using placed resources correctly does require some discipline from the graphics programmer.
+			//
+			// When using placed resources, there are some limitations that must be taken into consideration.
+			//
+			// The size of the heap that will be used for placed resources must be known in advance.
+			// Creating larger than necessary heaps is not a good idea because the only way to reclaim the GPU memory used by
+			// the heap is to either evict the heap or completely destroy it.
+			// Since you can only evict an entire heap from GPU memory, any resources that are currently placed in the heap must not
+			// be referenced in a command list that is being executed on the GPU.
+			//
+			// Depending on the GPU architecture, the type of resource that you can allocate within a particular heap may be limited.
+			// For example, buffer resources (vertex buffer, index buffer, constant buffer, structure buffer, etc..) can only be placed in
+			// a heap that was created with the ALLOW_ONLY_BUFFERS heap flag.
+			// Render target and depth/stencil resources can only be placed in a heap that was created with the ALLOW_ONLY_RT_DS_TEXTURES heap flag.
+			// Non render target textures can only be placed in a heap that was created with the ALLOW_ONLY_NON_RT_DS_TEXTURES heap flag.
+			// Adapters that support heap tier 2 and higher can create heaps using the ALLOW_ALL_BUFFERS_AND_TEXTURES heap flag to
+			// allow any resource type to be placed within that heap.
+			// Since the heap tier is dependent on the GPU architecture, most applications will probably be written assuming only heap tier 1 support.	
+			// 
+			// Aliasing Placed Resources:
+			//                             +-------------+
+			//                             |  Resource 1 |
+			//                             +-------------+
+			//                                    |
+			//                                    v
+			//  GPU memory                1--------------1
+			//  +---------------+---------+--------------+---------+----+-------------+
+			//  |               |         |              |         |    |             |
+			//  +---------------+---------+--------------+---------+----+-------------+
+			//                  2----------------------------------2    |
+			//                  |_______________^_______________________|
+			//                                  | Heap
+			//                                  |
+			//                  +----------------------------------+
+			//                  |            Resource 2            |
+			//                  +----------------------------------+
+			//
+			// Multiple placed resources can be aliased in a heap as long as they don’t access the same aliased heap space at the same time.
+			//
+			// Aliasing can help to reduce oversubscribing GPU memory usage since the size of the heap can be limited to the size of the
+			// largest resource that will be placed in the heap at any moment in time.
+			// Aliasing can be used as long as the same space in the heap is not used by multiple aliasing resources at the same time.
+			// Aliased resources can be swapped using a resource aliasing barrier.
+
+			// Gets the size and alignment of memory required for the buffer described by resourceDesc.
 			D3D12_RESOURCE_ALLOCATION_INFO allocationInfo = device->GetResourceAllocationInfo(0, 1, &resourceDesc);
 
 			// D3D12MA ValidateAllocateMemoryParameters requires this, wasn't always true on Xbox:
@@ -3419,6 +3550,15 @@ std::mutex queue_locker;
 				allocationDesc.ExtraHeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
 			}
 
+			// Internally call ID3D12Device::CreateHeap to create a heap for the placed resources
+			// and save an heap reference in the allocation object; specifically in internal_state->allocation::m_Placed::block::m_Heap
+			// It also saves size and alignment for the allocation in internal_state->allocation::m_Size and
+			// internal_state->allocation::m_Alignment.
+			// Moreover, and most importantly, it also set m_PackedData::m_Type to TYPE_HEAP so that the offset
+			// of the first placed resource in this heap will be 0, as returned by GetOffset (see the call to CreatePlacedResource below).
+			// ID3D12Device::CreateHeap automatically aligns the created heap to the required alignment specified
+			// in the D3D12_HEAP_DESC struct passed as first param; see AllocatorPimpl::AllocateHeap
+			// by following the call to Allocator::AllocateMemory below.
 			hr = dx12_check(allocationhandler->allocator->AllocateMemory(
 				&allocationDesc,
 				&allocationInfo,
@@ -3427,6 +3567,11 @@ std::mutex queue_locker;
 
 			if (allocationDesc.ExtraHeapFlags == D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS || allocationDesc.ExtraHeapFlags == D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES)
 			{
+				// Create the buffer resource in the heap allocated above by reserving the required space in
+				// the heap for the buffer. See resourceDesc.Width = alignedSize above.
+				// GetHeap returns internal_state->allocation::m_Heap::heap
+				// GetOffset returns the offset in the heap where the resource is placed:
+				// in this case returns 0, because we have only one resource in the heap just created above.
 				hr = dx12_check(device->CreatePlacedResource(
 					internal_state->allocation->GetHeap(),
 					internal_state->allocation->GetOffset(),
@@ -3439,6 +3584,20 @@ std::mutex queue_locker;
 		}
 		else if (has_flag(desc->misc_flags, ResourceMiscFlag::SPARSE))
 		{
+			// Reserved Resources:
+			//
+			// Reserved resources are created without specifying a heap to place the resource in.
+			// Reserved Resources will allocate a virtual space address range in GPU memory but,
+			// initially, without association to any physical GPU memory heap.
+			// Reserved resources are created using the ID3D12Device::CreateReservedResource method.
+			// Before a reserved resource can be used, it must be mapped to a heap using the ID3D12CommandQueue::UpdateTileMappings method.
+			//
+			// Reserved resources can be created that are larger than can fit in a single heap.
+			// Portions of the reserved resource can be mapped (and unmapped) using one or more heaps residing in physical GPU memory.
+			//
+			// Using reserved resources, a large volume texture can be created using virtual memory but only the resident
+			// spaces of the volume texture needs to be mapped to physical memory.
+			// This resource type provides options for implementing rendering techniques that use sparse voxel octrees without exceeding GPU memory budgets.
 			hr = dx12_check(device->CreateReservedResource(
 				&resourceDesc,
 				resourceState,
@@ -3452,6 +3611,33 @@ std::mutex queue_locker;
 		{
 			if (alias == nullptr)
 			{
+				// Committed Resource:
+				//                           +------------+
+				//                           |  Resource  |
+				//                           +------------+
+				//                                 |
+				//  GPU memory                     v
+				//  +-----------------------+--------------+--------------+
+				//  |                       |     Heap     |              |
+				//  +-----------------------+--------------+--------------+
+				//
+				// A committed resource is created using the ID3D12Device::CreateCommittedResource method.
+				// This method creates both the resource and an implicit heap that is large enough to hold the resource.
+				// The resource is also mapped to the heap.
+				// The created heap is known as an implicit heap, because the heap object can't be obtained by the application.
+				// This means that this heap is exclusively dedicated to the resource and cannot be shared or subdivided for other resources.
+				// As a result, it is not possible to specify custom offsets or manage aliasing.
+				// Committed resources are easy to manage because the graphics programmer doesn’t need to be concerned with
+				// placing the resource within the heap.
+				//
+				// Committed resources are ideal for allocating large resources like textures or statically sized resources
+				// (the size of the resource does not change).
+				// Committed resource are also commonly used to create large resource in an upload heap that can be used for
+				// uploading dynamic vertex or index buffers (useful for UI rendering or uploading constant buffer data that
+				// is changing for each draw call).
+				// ID3D12Device::CreateCommittedResource automatically aligns the implicit heap to the required alignment
+				// for the resource described by the second param: 64KB for buffers, normal textures and small MSAA textures,
+				// 4KB for small normal textures, 4MB for MSAA textures.
 				hr = dx12_check(allocationhandler->allocator->CreateResource(
 					&allocationDesc,
 					&resourceDesc,
@@ -3464,6 +3650,11 @@ std::mutex queue_locker;
 			else
 			{
 				// Aliasing: https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/resource_aliasing.html
+				// Create an aliasing resource in the same memory space as the placed resource.
+				// See call to Allocator::AllocateMemory above to check how it use the allocation object of the
+				// placed resource to store a reference to it.
+				// internal_state->allocation holds a reference to the placed resource created above,
+				// internal_state->resource will hold a reference to the aliasing resource created here.
 				auto alias_internal = to_internal(alias);
 				hr = dx12_check(allocationhandler->allocator->CreateAliasingResource(
 					alias_internal->allocation.Get(),
@@ -3790,6 +3981,7 @@ std::mutex queue_locker;
 		else if (has_flag(texture->desc.misc_flags, ResourceMiscFlag::SPARSE))
 		{
 			resourcedesc.Layout = D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE;
+
 			hr = dx12_check(device->CreateReservedResource(
 				&resourcedesc,
 				resourceState,
@@ -5136,22 +5328,34 @@ std::mutex queue_locker;
 				srv_desc.Buffer.NumElements = UINT(std::min(size, desc.size - offset) / stride);
 			}
 
-			// Create a heap and a descriptor in it for the resource.
-			// If bindless is available, the descriptor is also copied to the global shader visible heap.
-			// The SingleDescriptor instance will hold (internally) the handle of the heap slot where the descriptor is stored,
-			// and the descriptor index in the global shader visible heap if bindless is used.
+			// See SingleDescriptor::init() for details on the process below:
+			// This creates a descriptor for the resource in a local descriptor heap.
+			// If bindless is available, the descriptor is also copied to the global shader-visible heap
+			// and receives a bindless descriptor index.
+			// The SingleDescriptor instance will hold (internally) the handle of the allocated heap slot in
+			// the local descriptor heap, and (if bindless) the descriptor index in the global shader-visible heap.
 			SingleDescriptor descriptor;
 			descriptor.init(this, srv_desc, internal_state->resource.Get());
 			descriptor.buffer_offset = offset;
 
+			// if internal_state->srv is not valid (that is, if the resource does not have a SingleDescriptor associated with it yet),
+			// then we store the current SingleDescriptor in internal_state->srv.
+			// This will be used to describe the whole resource.
 			if (!internal_state->srv.IsValid())
 			{
-				internal_state->srv = descriptor; // for bindless, this will also contain the descriptor index in the global shader visible heap
+				// for bindless, this will also contain the descriptor index in the global shader visible heap
+				// for non-bindless, this will just contain the descriptor handle in the local descriptor heap
+				internal_state->srv = descriptor;
 				return -1;
 			}
-			// If internal_state->srv is already valid (that is, if the resource already has a SingleDescriptor associated with it),
+
+			// If internal_state->srv was already valid (that is, if the resource already has a SingleDescriptor associated with it),
 			// then we store the current SingleDescriptor in the subresources_srv array.
-			// This is necessary because ???
+			// This is necessary because, as explained for Resource_DX12::srv and Resource_DX12::subresources_srv,
+			// if we already have a SingleDescriptor associated with the resource that describes the whole resource,
+			// then we need to create a new SingleDescriptor for the subresources, and store them in the subresources_srv array.
+			// Note: SingleDescritor(s) stored in the subresources_srv array will also have their descriptor index in the
+			// global shader-visible heap if bindless is available.
 			internal_state->subresources_srv.push_back(descriptor);
 			return int(internal_state->subresources_srv.size() - 1); // return the index of the SingleDescriptor in the subresources_srv array
 		}
