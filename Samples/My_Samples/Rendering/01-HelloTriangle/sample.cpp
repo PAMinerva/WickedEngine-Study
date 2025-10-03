@@ -1,7 +1,14 @@
 #include "sample.h"
+#include <wiECS.h>
+#include <wiScene_Components.h>
+
+static wi::ecs::Entity entity;
 
 void SampleRenderPath::Load()
 {
+	using namespace wi::scene;
+	using namespace wi::ecs;
+
 	// In an Entity-Component-System (ECS) architecture, entities and components are fundamental concepts:
 	// 
 	// Entity:
@@ -23,41 +30,46 @@ void SampleRenderPath::Load()
 	// 
 	// In summary, ECS is a design pattern that promotes separation of concerns by dividing data (components) and behavior (systems),
 	// with entities acting as unique identifiers that group related components together.
-	wi::scene::Scene& scene = wi::scene::GetScene();
+	Scene& scene = GetScene();
 
-	auto materialEntity = scene.Entity_CreateMaterial("default");
-	auto& material = *scene.materials.GetComponent(materialEntity);
+	// Create a material for the mesh:
+	// We specify that the material won't be affected by lighting (SHADERTYPE_UNLIT),
+	// and that it will use vertex colors (SetUseVertexColors(true)) to color the mesh.
+	Entity mat_entity = CreateEntity();
+	scene.materials.Create(mat_entity);
+	MaterialComponent &material = *scene.materials.GetComponent(mat_entity);
 	material.shaderType = wi::scene::MaterialComponent::SHADERTYPE_UNLIT;
 	material.SetUseVertexColors(true);
-	material.SetDoubleSided(true);
 
-	auto triangleMeshEntity = scene.Entity_CreateMesh("triangle");
+	entity = wi::ecs::CreateEntity();
+	scene.layers.Create(entity);
+	scene.transforms.Create(entity);
+	ObjectComponent &object = scene.objects.Create(entity);
 
-    // We store the triangle mesh entity in meshID for later access.
+    // We store the mesh entity in meshID for later access.
     // Without this, there would be no way to determine which mesh an object is using,
     // as the association between objects and meshes is only maintained by
     // ComponentManager<ObjectComponent>, which is not directly accessible
     // from an ObjectComponent instance.
-	auto& objectTriangle = scene.objects.Create(triangleMeshEntity);
-	objectTriangle.meshID = triangleMeshEntity;
+	auto &mesh = scene.meshes.Create(entity);
+	object.meshID = entity;
 
-	auto& meshTriangle = *scene.meshes.GetComponent(triangleMeshEntity);
-	meshTriangle.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
-	meshTriangle.subsets.back().materialID = materialEntity;
-	meshTriangle.indices.resize(3);
-	meshTriangle.subsets.back().indexOffset = 0;
-	meshTriangle.subsets.back().indexCount = 3;
-	meshTriangle.indices[0] = 0;
-	meshTriangle.indices[1] = 2;
-	meshTriangle.indices[2] = 1;
-	meshTriangle.vertex_positions.resize(3);
-	meshTriangle.vertex_positions[0] = XMFLOAT3(-1.0f, -0.5f, 0.0f);
-	meshTriangle.vertex_positions[1] = XMFLOAT3(1.0f, -0.5f, 0.0f);
-	meshTriangle.vertex_positions[2] = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	meshTriangle.vertex_colors.resize(3);
-	meshTriangle.vertex_colors[0] = wi::math::CompressColor(XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f));  // rgba Red;
-	meshTriangle.vertex_colors[1] = wi::math::CompressColor(XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));  // rgba Green;
-	meshTriangle.vertex_colors[2] = wi::math::CompressColor(XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f));  // rgba Blue;
+	mesh.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
+	mesh.subsets.back().materialID = mat_entity;
+	mesh.indices.resize(3);
+	mesh.subsets.back().indexOffset = 0;
+	mesh.subsets.back().indexCount = 3;
+	mesh.indices[0] = 0;
+	mesh.indices[1] = 2;
+	mesh.indices[2] = 1;
+	mesh.vertex_positions.resize(3);
+	mesh.vertex_positions[0] = XMFLOAT3(-1.0f, -0.5f, 0.0f);
+	mesh.vertex_positions[1] = XMFLOAT3(0.0f, 1.0f, 0.0f);
+	mesh.vertex_positions[2] = XMFLOAT3(1.0f, -0.5f, 0.0f);
+	mesh.vertex_colors.resize(3);
+	mesh.vertex_colors[0] = wi::math::CompressColor(XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f));  // rgba Red;
+	mesh.vertex_colors[1] = wi::math::CompressColor(XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f));  // rgba Green;
+	mesh.vertex_colors[2] = wi::math::CompressColor(XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f));  // rgba Blue;
 
 	// Create vertex and index buffers as aliasing resources in a single general buffer accessible by the GPU.
 	// Also create an SRV for each buffer type (indices, positions, colors, etc) in the general buffer
@@ -66,10 +78,9 @@ void SampleRenderPath::Load()
 	// through SingleDescriptor::allocationhandler; we can do it via the SingleDescriptor object
 	// created in CreateRenderData and stored as an element of the subresources_srv vector of the 
 	// Resource_DX12 represeting the general buffer resource).
-	meshTriangle.CreateRenderData();
+	mesh.CreateRenderData();
 
-	scene.transforms.Create(triangleMeshEntity);
-	auto meshtrans = scene.transforms.GetComponent(triangleMeshEntity);
+	auto meshtrans = scene.transforms.GetComponent(entity);
 	meshtrans->Translate(XMFLOAT3(0.0f, -0.2f, 2.0f));
 	meshtrans->Scale(XMFLOAT3(1, 1, 1));
 
@@ -84,8 +95,7 @@ void SampleRenderPath::Update(float dt)
     static float direction = 1.0f;
     static float delta_x = 0.0f;
 
-	auto triangleMeshEntity = wi::scene::GetScene().Entity_FindByName("triangle");
-    TransformComponent* transform = GetScene().transforms.GetComponent(triangleMeshEntity);
+    TransformComponent* transform = GetScene().transforms.GetComponent(entity);
 
     if (transform != nullptr)
     {
