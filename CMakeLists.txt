@@ -231,4 +231,4 @@ if (WICKED_WINDOWS_TEMPLATE)
 endif()
 
 # My samples
-add_subdirectory(Samples/Tutorial/01-HelloTriangle)
+add_subdirectory(Samples/My_Samples)
