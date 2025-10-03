@@ -200,6 +200,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (application.is_window_active)
             application.SetWindow(hWnd);
         break;
+    case WM_INPUT:
+        wi::input::rawinput::ParseMessage((void *)lParam);
+        break;
     case WM_KILLFOCUS:
         application.is_window_active = false;
         break;
