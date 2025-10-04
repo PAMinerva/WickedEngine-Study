@@ -231,7 +231,7 @@ void SoftBody::SolveEdges(float compliance, float dt)
         float len = XMVectorGetX(XMVector3Length(diff));
         if (len == 0.0f) continue;
 
-        // Direzione normalizzata
+        // Normalized direction vector of the edge (from p1 towards p0)
         XMVECTOR dir = XMVectorScale(diff, 1.0f / len);
 
         // Compute the constraint and its scaling factor
