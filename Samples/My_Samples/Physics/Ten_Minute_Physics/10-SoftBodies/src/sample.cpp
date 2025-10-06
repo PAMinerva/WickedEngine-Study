@@ -1,15 +1,14 @@
-#include <array>
 #include <cstddef>
 #include <wiColor.h>
 #include <wiECS.h>
 #include <wiGUI.h>
+#include <wiMath.h>
 #include "stdafx.h"
 #include "grabber.h"
 #include "softBody.h"
 #include "simulation_utils.h"
 
 #define CAMERAMOVESPEED 10.0f
-#define DEG_PER_RAD 57.29577951307855 // 180/π
 static float camera_pos[3] = {0.0f, 1.0f, -3.0f};
 static float camera_ang[3] = {8.0f, 0.0f, 0.0f};
 wi::scene::TransformComponent camera_transform;
@@ -370,11 +369,14 @@ void SampleRenderPath::Update(float dt)
 
         camera_transform.ClearTransform();
         camera_transform.Translate(
-            XMFLOAT3(camera_pos[0], camera_pos[1], camera_pos[2]));
-        camera_transform.RotateRollPitchYaw(
-            XMFLOAT3(camera_ang[0] / (float)DEG_PER_RAD,
-                     camera_ang[1] / (float)DEG_PER_RAD,
-                     camera_ang[2] / (float)DEG_PER_RAD));
+            XMFLOAT3(camera_pos[0],
+					 camera_pos[1],
+					 camera_pos[2]));
+		camera_transform.RotateRollPitchYaw(
+			XMFLOAT3(wi::math::DegreesToRadians(camera_ang[0]),
+			         wi::math::DegreesToRadians(camera_ang[1]),
+		             wi::math::DegreesToRadians(camera_ang[2]))
+		);
         camera_transform.UpdateTransform();
         camera.TransformCamera(camera_transform);
         camera.UpdateCamera();
