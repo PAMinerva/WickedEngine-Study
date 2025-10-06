@@ -4,57 +4,22 @@
 #include "softBody.h"
 #include "simulation_utils.h"
 
-// void Grabber::start(wi::primitive::Ray ray, wi::scene::PickResult pick, SoftBodyInstance* sbInstance)
-void Grabber::start(wi::scene::PickResult pick, SoftBody* sbInstance)
+void Grabber::start(wi::scene::PickResult pick, SoftBody* softbody)
 {
-    if (isGrabbing || sbInstance == nullptr)
+    if (isGrabbing || softbody == nullptr)
         return;
 
     pickInfo = pick;
-    this->sbInstance = sbInstance;
-	// this->softBody = softBody;
-
-	// XMVECTOR origin = XMLoadFloat3(&ray.origin);
-	// XMVECTOR direction = XMLoadFloat3(&ray.direction);
-	// XMVECTOR posVec = XMVectorAdd(origin, XMVectorScale(direction, pick.distance));
-	// XMFLOAT3 posF;
-	// XMStoreFloat3(&posF, posVec);
-	// std::vector<float> pos = {posF.x, posF.y, posF.z};
-	//
-	//    physicsObject->StartGrab(pos);
+    this->softbody = softbody; // this->softBody = softBody;
 	
-
-	// auto objtrans = wi::scene::GetScene().transforms.GetComponent(sbInstance->objectEntity);
-	// XMMATRIX objMatrix = objtrans->GetWorldMatrix();
-	// XMMATRIX invObjMatrix = XMMatrixInverse(nullptr, objMatrix);
-	//
-	// XMVECTOR pickPosWorld = XMLoadFloat3(&pick.position);
-	// XMVECTOR pickPosObject = XMVector3Transform(pickPosWorld, invObjMatrix);
-	//
-	// XMFLOAT3 pickPosObj;
-	// XMStoreFloat3(&pickPosObj, pickPosObject);
-	//
-	// std::vector<float> pickPosObjVec = { pickPosObj.x, pickPosObj.y, pickPosObj.z };
-	// sbInstance->softBody->StartGrab(pickPosObjVec);
-	
-	sbInstance->StartGrab(pick);
+	this->softbody->StartGrab(pick);
 
 	std::vector<float> pos {pick.position.x, pick.position.y, pick.position.z};
     prevPos = pos;
-	// prevPos = {pickPosObjVec};
     vel = {0, 0, 0};
     time = 0.0f;
 	startDistance = pick.distance;
-	// XMVECTOR originVec = XMLoadFloat3(&ray.origin);
-	// XMVECTOR pickPosVec = XMVectorSet(
-	// 	pickPosObjVec[0],
-	// 	pickPosObjVec[1],
-	// 	pickPosObjVec[2],
-	// 	0.0f
-	// );
-	// XMVECTOR diff = XMVectorSubtract(originVec, pickPosVec);
-	// XMVECTOR distVec = XMVector3Length(diff);
-	// startDistance = XMVectorGetX(distVec);
+
     isGrabbing = true;
 
 	if (gPhysicsScene.paused)
@@ -62,9 +27,8 @@ void Grabber::start(wi::scene::PickResult pick, SoftBody* sbInstance)
 }
 
 void Grabber::move(wi::primitive::Ray ray, wi::scene::PickResult pick)
-// void Grabber::move(wi::scene::PickResult pick)
 {
-    if (!isGrabbing || sbInstance == nullptr)
+    if (!isGrabbing || softbody == nullptr)
         return;
 
 	XMVECTOR origin = XMLoadFloat3(&ray.origin);
@@ -73,23 +37,7 @@ void Grabber::move(wi::primitive::Ray ray, wi::scene::PickResult pick)
 	XMFLOAT3 posF;
 	XMStoreFloat3(&posF, posVec);
 	std::vector<float> pos = {posF.x, posF.y, posF.z};
-	//
-	// vel = {pos};
-	//
-	// XMFLOAT3 velF = XMFLOAT3(vel[0], vel[1], vel[2]);
-	// XMFLOAT3 prevPosF = XMFLOAT3(prevPos[0], prevPos[1], prevPos[2]);
-	// XMVECTOR velVec = XMLoadFloat3(&velF);
-	// XMVECTOR prevPosVec = XMLoadFloat3(&prevPosF);
-	// velVec = XMVectorSubtract(velVec, prevPosVec);
-	//
-	// if (time > 0)
-	//    {
-	// 	velVec = XMVectorScale(velVec, 1.0f / time);
-	//    }
-	// else
-	//        vel = {0, 0, 0};
 
-	// std::vector<float> pos {pick.position.x, pick.position.y, pick.position.z};
 	vel = {pos};
 	vel[0] -= prevPos[0];
 	vel[1] -= prevPos[1];
@@ -108,18 +56,17 @@ void Grabber::move(wi::primitive::Ray ray, wi::scene::PickResult pick)
     time = 0.0f;
 
     // Move the grabbed vertex
-	// sbInstance->softBody->MoveGrabbed(pos, vel);
-    sbInstance->MoveGrabbed(pos, vel);
+    this->softbody->MoveGrabbed(pos, vel);
 }
 
 void Grabber::end()
 {
-    if (isGrabbing && sbInstance != nullptr)
+    if (isGrabbing && softbody != nullptr)
     {
         std::vector<float> posVec = {prevPos};
         std::vector<float> velVec = {vel};
-        sbInstance->EndGrab(posVec, velVec);
-        sbInstance = nullptr;
+        softbody->EndGrab(posVec, velVec);
+        softbody = nullptr;
         isGrabbing = false;
     }
 }
