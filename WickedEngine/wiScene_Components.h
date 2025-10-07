@@ -723,7 +723,7 @@ namespace wi::scene
 
 		// Non-serialized attributes:
 		wi::primitive::AABB aabb;
-		wi::graphics::GPUBuffer generalBuffer; // index buffer + all static vertex buffers
+		wi::graphics::GPUBuffer generalBuffer; // index buffer + all static vertex buffers of the mesh
 		wi::graphics::GPUBuffer streamoutBuffer; // all dynamic vertex buffers
 		wi::allocator::PageAllocator::Allocation generalBufferOffsetAllocation;
 		wi::graphics::GPUBuffer generalBufferOffsetAllocationAlias;
