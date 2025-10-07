@@ -76,7 +76,8 @@ void SampleRenderPath::Load()
 	// and put them into a heap (bindless if slots are available in the shader-visible descriptor heap
 	// associated with the command list, otherwise put them into a local descriptor heap accessible
 	// through SingleDescriptor::allocationhandler; we can do it via the SingleDescriptor object
-	// created in CreateRenderData and stored as an element of the subresources_srv vector of the 
+	// created in CreateRenderData (specifically, in the CreateSubresource method called at the end of
+	// CreateRenderData) and stored as an element of the subresources_srv vector of the 
 	// Resource_DX12 represeting the general buffer resource).
 	mesh.CreateRenderData();
 
