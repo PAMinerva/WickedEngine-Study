@@ -55,6 +55,13 @@ namespace wi::platform
 #elif defined(SDL2)
 	using window_type = SDL_Window*;
 	using error_type = int;
+
+    struct DPI_INFO
+    {
+        float ddpi = 0;
+        float hdpi = 0;
+        float vdpi = 0;
+    };
 #elif defined(__APPLE__)
 	using window_type = void*;
 	using error_type = int;
@@ -74,7 +81,7 @@ namespace wi::platform
 #elif defined(__APPLE__)
 		std::exit(0);
 #endif
-		
+
 	}
 
 	struct WindowProperties
@@ -101,12 +108,17 @@ namespace wi::platform
 #endif // PLATFORM_WINDOWS_DESKTOP || PLATFORM_XBOX
 
 #ifdef PLATFORM_LINUX
-		int window_width, window_height;
-		SDL_GetWindowSize(window, &window_width, &window_height);
+		// int window_width, window_height;
+		// SDL_GetWindowSize(window, &window_width, &window_height);
 		SDL_Vulkan_GetDrawableSize(window, &dest->width, &dest->height);
-		dest->dpi = ((float)dest->width / (float)window_width) * 96.f;
+		// dest->dpi = ((float)dest->width / (float)window_width) * 96.f;
+
+		DPI_INFO dpi_info;
+
+		SDL_GetDisplayDPI(0, &dpi_info.ddpi, &dpi_info.hdpi, &dpi_info.vdpi);
+		dest->dpi = dpi_info.hdpi;
 #endif // PLATFORM_LINUX
-		
+
 #ifdef PLATFORM_APPLE
 		XMUINT2 size = wi::apple::GetWindowSize(window);
 		dest->width = size.x;
