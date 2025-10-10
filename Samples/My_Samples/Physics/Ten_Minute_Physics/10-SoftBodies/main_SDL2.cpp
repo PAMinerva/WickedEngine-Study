@@ -24,9 +24,21 @@ int sdl_loop()
                             quit = true;
                             break;
                         case SDL_WINDOWEVENT_RESIZED:
-                            // Tells the engine to reload window configuration (size and dpi)
+						{    // Tells the engine to reload window configuration (size and dpi)
                             app.SetWindow(app.window);
+
+							// Update DPI after resize
+							struct DPI_INFO
+							{
+								float ddpi = 0;
+								float hdpi = 0;
+								float vdpi = 0;
+							} dpi_info;
+
+							SDL_GetDisplayDPI(0, &dpi_info.ddpi, &dpi_info.hdpi, &dpi_info.vdpi);
+							app.canvas.dpi = dpi_info.hdpi;
                             break;
+						}
                         case SDL_WINDOWEVENT_FOCUS_LOST: //TODO
                             app.is_window_active = false;
                             break;
@@ -85,6 +97,16 @@ int main(int argc, char* argv[])
     }
 
     app.SetWindow(window.get());
+
+    struct DPI_INFO
+    {
+        float ddpi = 0;
+        float hdpi = 0;
+        float vdpi = 0;
+    } dpi_info;
+
+    SDL_GetDisplayDPI(0, &dpi_info.ddpi, &dpi_info.hdpi, &dpi_info.vdpi);
+    app.canvas.dpi = dpi_info.hdpi;
 
     int ret = sdl_loop();
 
