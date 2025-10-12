@@ -197,7 +197,8 @@ float3x3 adjoint(in float4x4 m)
 }
 
 // The root signature will affect shader compilation for DX12.
-//	The shader compiler will take the defined name: WICKED_ENGINE_DEFAULT_ROOTSIGNATURE and use it as root signature
+//	The shader compiler will take the defined name (WICKED_ENGINE_DEFAULT_ROOTSIGNATURE; see wiShadercompiler.cpp)
+//	and use it as root signature.
 //	If you wish to specify custom root signature, make sure that this define is not available
 //		(for example: not including this file, or using #undef WICKED_ENGINE_DEFAULT_ROOTSIGNATURE)
 #if defined(__hlsl_dx_compiler) && !defined(__spirv__)
@@ -531,6 +532,8 @@ static const BindlessResource<StructuredBuffer<DDGIProbe> > bindless_structured_
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<DDGIProbe> bindless_structured_ddi_probes[];
 #else
 StructuredBuffer<ShaderMeshInstance> bindless_structured_meshinstance[] : register(space200);
+// Bindless array of descriptors of StructuredBuffer<ShaderGeometry>
+// Bind from C++ side occurs thanks to WICKED_ENGINE_DEFAULT_ROOTSIGNATURE root signature declared at the top of this file.
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(space201);
 StructuredBuffer<ShaderMeshlet> bindless_structured_meshlet[] : register(space202);
 StructuredBuffer<ShaderCluster> bindless_structured_cluster[] : register(space203);
@@ -1293,9 +1296,34 @@ inline uint3 unflatten3D(uint idx, uint3 dim)
 }
 
 // Creates a unit cube triangle strip from just vertex ID (14 vertices)
+// Number of vertices: 14
+// Topology: D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP
+//
+//   ref: Williamson, D. (2016) 'Buffer-free Generation of Triangle Strip Cube Vertices',
+//   in Lengyel, E. (ed) Game Engine Gems 3. CRC Press, pp. 85-89.
+//
+/**
+ Returns the position in object space of the vertex corresponding to the given
+ id of a cube triangle strip centered at [0.5,0.5,0.5] with a size of [1,1,1].
+
+ @pre			0 <= @a vertex_id < 14
+ @param[in]		vertex_id
+				The vertex id.
+ @return		The position in object space of the vertex corresponding to
+				the given id of a cube triangle strip centered at [0.5,0.5,0.5]
+				with a size of [1,1,1].
+ */
 inline float3 vertexID_create_cube(in uint vertexID)
 {
-	uint b = 1u << vertexID;
+	uint b = 1u << vertexID; // b has exactly one bit set, at the position specified by vertexID
+
+	// 0x287A = 10100001111010 is the bitmask for X coordinates
+	// 0x02AF = 00001010101111 is the bitmask for Y coordinates
+	// 0x31E3 = 11000111100011 is the bitmask for Z coordinates
+	//
+	// returns (x,y,z) where each component is either 0 or 1 based on the bitmask
+	// (bitmask & b) != 0 tests whether the bit at position vertexID is set in the bitmask
+	// if it is set, the component is 1, otherwise it is 0
 	return float3((0x287a & b) != 0, (0x02af & b) != 0, (0x31e3 & b) != 0);
 }
 

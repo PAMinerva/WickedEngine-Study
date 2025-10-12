@@ -48,6 +48,8 @@ namespace wi::jobsystem
 			args.groupID = groupID;
 			if (sharedmemory_size > 0)
 			{
+				// alloca allocates space in the stack frame of the caller
+				// that will be automatically freed when the function returns
 				static constexpr uint32_t alignment = 64; // avx-512 alignment is assumed at max
 				args.sharedmemory = alloca(sharedmemory_size + alignment); // overestimated alignment to not overwrite after allocation from the aligned pointer
 				args.sharedmemory = (void*)align((uint64_t)args.sharedmemory, (uint64_t)alignment);
@@ -137,6 +139,9 @@ namespace wi::jobsystem
 			return true;
 		}
 	};
+
+	// This structure contains resources that are per priority level
+	// It also contains the work function that checks queues for jobs and executes them
 	struct PriorityResources
 	{
 		uint32_t numThreads = 0;
@@ -172,6 +177,9 @@ namespace wi::jobsystem
 			Job job;
 			for (uint32_t i = 0; i < numThreads; ++i)
 			{
+                // There are as many job queues as there are threads in this priority level
+                // so we can call work passing the ThreadID as startingQueue to start checking
+                // (see how work is invoked in the Initialize method below)
 				JobQueue& job_queue = jobQueuePerThread[constrain_queue_index(startingQueue)];
 				while (job_queue.pop_front(job))
 				{
@@ -245,12 +253,13 @@ namespace wi::jobsystem
 		// Retrieve the number of hardware threads in this system:
 		internal_state.numCores = std::thread::hardware_concurrency();
 
+		// For each prioriry level...
 		for (int prio = 0; prio < int(Priority::Count); ++prio)
 		{
 			const Priority priority = (Priority)prio;
 			PriorityResources& res = internal_state.resources[prio]; // res points to an element of PriorityResources::resources
 
-			// Calculate the actual number of worker threads we want:
+			// Calculate the actual number of worker threads we want for this priority level:
 			switch (priority)
 			{
 			case Priority::High:
@@ -266,6 +275,9 @@ namespace wi::jobsystem
 				assert(0);
 				break;
 			}
+			
+			// Clamp the number of threads to a valid range: At least one thread, and at most maxThreadCount
+			// Use the number of threads for this priority level to create that many job queues and std::thread(s)
 			res.numThreads = clamp(res.numThreads, 1u, maxThreadCount);
 			res.jobQueuePerThread.reset(new JobQueue[res.numThreads]);
 			res.threads.reserve(res.numThreads);
@@ -276,6 +288,7 @@ namespace wi::jobsystem
 				res.mod_lut[i] = i % res.numThreads;
 			}
 
+            // For each thread in the priority level...
 			for (uint32_t threadID = 0; threadID < res.numThreads; ++threadID)
 			{
 				// Create and store a thread in the array PriorityResources::threads specifying a lamda function that
@@ -356,6 +369,7 @@ namespace wi::jobsystem
 				// Do Windows-specific thread setup:
 
 				// Put each thread on to dedicated core:
+				// Avoid core 0, because that is the one the main thread usually runs on
 				DWORD_PTR affinityMask = 1ull << core;
 				DWORD_PTR affinity_result = SetThreadAffinityMask(handle, affinityMask);
 				assert(affinity_result > 0);

@@ -1042,6 +1042,9 @@ namespace dx12_internal
 		// This is the bitflag of all root parameters:
 		uint64_t root_mask = 0ull;
 		// These map shader registers in the binding space (space=0) to root parameters
+		// However, note that GraphicsDevice_DX12::BindResource(s) map slots to shader registers
+		// so that we can use slots to index both resources and related root parameters.
+		// Remember DescriptorBinder::table is used to map resources to slots (shader registers).
 		uint8_t CBV[DESCRIPTORBINDER_CBV_COUNT];
 		uint8_t SRV[DESCRIPTORBINDER_SRV_COUNT];
 		uint8_t UAV[DESCRIPTORBINDER_UAV_COUNT];
@@ -1218,7 +1221,7 @@ namespace dx12_internal
 				allocationhandler->free_bindless_res.pop_back();
 			}
 			allocationhandler->destroylocker.unlock();
-			
+
 			// If a free index was found, copy the descriptor to the bindless heap, the shader-visible one
 			// stored in the GraphicsDevice_DX12 instance passed as parameter.
 			if (index >= 0)
@@ -1862,9 +1865,7 @@ std::mutex queue_locker;
 					const uint64_t wrapped_offset_end = wrapped_offset + stats.descriptorCopyCount;
 
 					// Check that gpu offset doesn't intersect with our newly allocated range, if it does, we need to wait until gpu finishes with it:
-					// First check is with the cached completed value to avoid API call into fence object
-
-					// First check is with the cached completed value to avoid API call into fence object
+					// First check is with the cached completed value to avoid API call into fence object (that's the second check, which is more expensive; see below).
 					// See DescriptorHeapGPU::SignalGPU in the header file for more info.
 					// Usually, wrapped_offset should be greater than wrapped_gpu_offset (the end of the GPU range), since wrapped_offset is set CPU side
 					// while wrapped_gpu_offset GPU side. Otherwise, wrapped_offset is wrapped around to zero, and we need to wait until GPU finishes with
@@ -1922,14 +1923,15 @@ std::mutex queue_locker;
 							// ... copy the actual descriptors to the shader-visible heap.
 							for (UINT idx = 0; idx < range.NumDescriptors; ++idx)
 							{
-								// Calculate the shader register index for the descriptor
+								// Calculate the shader register of the descriptor
 								// and use it to retrieve the corresponding resource from table.
+								// (this is possible because we use slots as shader registers; see RootSignatureOptimizer)
 								const UINT reg = range.BaseShaderRegister + idx;
 								const GPUResource& resource = table.SRV[reg];
 								if (resource.IsValid())
 								{
 									// Tipically, SRVs in descriptor tables are not created with SingleDescriptor::init,
-									// but instead are simply created and stored in SingleDescriptor::srv.
+									// but instead are simply created and stored in Resource_DX12::srv (which is still a SingleDescriptor).
 									// Get the subresource index for the resource, if any,
 									// and retrieve the internal state of the resource.
 									// If the subresource index is negative, it means that the resource is
@@ -1981,7 +1983,7 @@ std::mutex queue_locker;
 									// SingleDescriptor::init function, which creates them in a local descriptor heap,
 									// and eventually copies them to the shader-visible heap, if bindless is available.
 									// Instead, we create a constant buffer view on the fly since they are not stored
-									// in local descritpor heaps.
+									// in local descriptor heaps.
 									D3D12_CONSTANT_BUFFER_VIEW_DESC cbv;
 									cbv.BufferLocation = internal_state->gpu_address;
 									cbv.BufferLocation += offset;
@@ -2213,6 +2215,21 @@ std::mutex queue_locker;
 				// // Save the PSO just created in the context of the command list to retrieve it later if needed
 				// commandlist.pipelines_worker.push_back(std::make_pair(pipeline_hash, newpso));
 				// pipeline = newpso.Get();
+
+				// D3D12_PIPELINE_STATE_STREAM_DESC streamDesc = {};
+				// streamDesc.pPipelineStateSubobjectStream = &stream;
+				// streamDesc.SizeInBytes = sizeof(stream.stream1);
+				// if (CheckCapability(GraphicsDeviceCapability::MESH_SHADER))
+				// {
+				// 	streamDesc.SizeInBytes += sizeof(stream.stream2);
+				// }
+				//
+				// ComPtr<ID3D12PipelineState> newpso; // create a new PSO from the stream
+				// dx12_check(device->CreatePipelineState(&streamDesc, PPV_ARGS(newpso))); // triggers shader compilation from blob bytecode to GPU machine code
+				//
+				// // Save the PSO just created in the context of the command list to retrieve it later if needed
+				// commandlist.pipelines_worker.push_back(std::make_pair(pipeline_hash, newpso));
+				// pipeline = newpso.Get();
 			}
 		}
 		else
@@ -2237,6 +2254,7 @@ std::mutex queue_locker;
 
 	void GraphicsDevice_DX12::predraw(CommandList cmd)
 	{
+		// Support lazy PSO creation (usefull when no renderpass info is passed to GraphicsDevice_DX12::CreatePipelineState)
 		pso_validate(cmd);
 
 		CommandList_DX12& commandlist = GetCommandList(cmd);
@@ -3499,8 +3517,8 @@ std::mutex queue_locker;
 			// Non render target textures can only be placed in a heap that was created with the ALLOW_ONLY_NON_RT_DS_TEXTURES heap flag.
 			// Adapters that support heap tier 2 and higher can create heaps using the ALLOW_ALL_BUFFERS_AND_TEXTURES heap flag to
 			// allow any resource type to be placed within that heap.
-			// Since the heap tier is dependent on the GPU architecture, most applications will probably be written assuming only heap tier 1 support.	
-			// 
+			// Since the heap tier is dependent on the GPU architecture, most applications will probably be written assuming only heap tier 1 support.
+			//
 			// Aliasing Placed Resources:
 			//                             +-------------+
 			//                             |  Resource 1 |
@@ -6274,7 +6292,7 @@ std::mutex queue_locker;
 			nullptr
 		);
 #else
-		// Retrieve the render target for the current back buffer and set the clear color
+		// Retrieve the render target view for the current back buffer and set the clear color
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC RTV = {};
 		RTV.cpuDescriptor = internal_state->textures[internal_state->GetBufferIndex()]->rtv.handle;
 		RTV.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -6900,17 +6918,27 @@ std::mutex queue_locker;
 		assert(slot < DESCRIPTORBINDER_CBV_COUNT);
 		CommandList_DX12& commandlist = GetCommandList(cmd);
 		auto& binder = commandlist.binder;
+		// If the resource associated with the slot is the one passed as parameter, we can skip rebinding it
 		if (binder.table.CBV[slot].internal_state != buffer->internal_state || binder.table.CBV_offset[slot] != offset)
 		{
 			binder.table.CBV[slot] = *buffer;
 			binder.table.CBV_offset[slot] = offset;
 
+			// If no PSO has been bound to the command list yet, the optimizer_graphics pointer
+			// will be null and this block will be skipped.
+			// This is usually the case unless RenderMeshes is called, which selects and
+			// binds the appropriate PSO variant to the command list.
 			if (binder.optimizer_graphics != nullptr)
 			{
 				const RootSignatureOptimizer& optimizer = *(RootSignatureOptimizer*)binder.optimizer_graphics;
 				if (optimizer.CBV[slot] != RootSignatureOptimizer::INVALID_ROOT_PARAMETER)
 				{
-					// Mark the root parameter as dirty
+					// Mark the root parameter as dirty by setting the corresponding bit in the dirty mask:
+					// See RootSignatureOptimizer::init, which is called during PSO creation, so that
+					// it is safe to access optimizer.CBV[] here, because a PSO has been bound before.
+					// (see GraphicsDevice_DX12::CreatePipelineState, called by wi::renderer::LoadShaders,
+					// called by wi::renderer::Initialize, called by wi::Initializer::InitializeComponentsAsync,
+					// called by wi::Application::Initialize)
 					binder.dirty_graphics |= 1ull << optimizer.CBV[slot];
 				}
 			}
@@ -7018,7 +7046,9 @@ std::mutex queue_locker;
 			commandlist.prev_pipeline_hash = {};
 			commandlist.dirty_pso = false;
 		}
-		else // if the pso has not been created yet, we set it as dirty and associate an hash to it in the command list
+		else	// If the pso has not been created yet, we set it as dirty and associate an hash to it in the command list.
+				// See GraphicsDevice_DX12::CreatePipelineState: if a renderpass info is not provided, we simply store
+				// the pipeline state data in the internal state for later use when we can actually create the PSO.
 		{
 			PipelineHash pipeline_hash;
 			pipeline_hash.pso = pso;

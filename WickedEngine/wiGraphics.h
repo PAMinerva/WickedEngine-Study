@@ -974,16 +974,16 @@ namespace wi::graphics
 		} type = Type::RENDERTARGET;
 		enum class LoadOp
 		{
-			LOAD,
-			CLEAR,
-			DONTCARE,
+			LOAD,     // Retain previous texture contents at the start of the render pass
+			CLEAR,    // Clear texture at the start of the render pass by using the specified clear value
+			DONTCARE, // Texture contents are undefined at the start of the render pass (only use this if you are sure all texels will be overwritten)
 		} loadop = LoadOp::LOAD;
 		const Texture* texture = nullptr;
 		int subresource = -1;
 		enum class StoreOp
 		{
-			STORE,
-			DONTCARE,
+			STORE,    // Preserve texture contents at the end of the render pass
+			DONTCARE, // Texture contents are undefined at the end of the render pass
 		} storeop = StoreOp::STORE;
 		ResourceState layout_before = ResourceState::UNDEFINED;	// layout before the render pass
 		ResourceState layout = ResourceState::UNDEFINED;	// layout within the render pass

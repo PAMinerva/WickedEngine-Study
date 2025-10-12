@@ -31,10 +31,10 @@ namespace wi::graphics
 	struct DescriptorBindingTable
 	{
     // SRV array is used for binding resources to binding slots by
-    // associanting each resource index with a binding slot (shader register).
+    // associanting each resource index in the array with a binding slot (shader register).
     // SRV_index array is used for binding binding slots to descriptor indices
     // (to index in the Resource_DX12::subresources_srv array), by associating each
-    // descriptor index index with a binding slot (shader register).
+    // descriptor index index in the array with a binding slot (shader register).
     // Max 16 SRV descriptor can be bound at once, but this can be increased by using
     // bindless descriptors.
     // It uses offsets for CBVs instead of indices since we dont' have subresources for constant buffers,
@@ -346,16 +346,19 @@ namespace wi::graphics
 					desc.misc_flags |= ResourceMiscFlag::RAY_TRACING;
 				}
 				allocator.alignment = GetMinOffsetAlignment(&desc);
-				// allocate enough space to possibly create other buffers used in the current frame
+				// allocate enough space to possibly create other buffers in the same allocation for the current frame
+				// but if that's not enough, we allocate a new buffer which is bigger (note that the old buffer size is used)
+				// however, old buffers will remain valid since thay are returned as GPUAllocation objects that can be used by the caller
+				// so that allocator.buffer can be used to create a new buffer
 				desc.size = align((allocator.buffer.desc.size + dataSize) * 2, allocator.alignment);
 				CreateBuffer(&desc, nullptr, &allocator.buffer);
 				SetName(&allocator.buffer, "frame_allocator");
 				allocator.offset = 0;
 			}
 
-			allocation.buffer = allocator.buffer;
+			allocation.buffer = allocator.buffer; // upload buffer is both CPU and GPU visible
 			allocation.offset = allocator.offset;
-			allocation.data = (void*)((size_t)allocator.buffer.mapped_data + allocator.offset);
+			allocation.data = (void*)((size_t)allocator.buffer.mapped_data + allocator.offset); // CPU write pointer
 
 			allocator.offset += align(dataSize, allocator.alignment); // move offset to preserve previous buffers in the same allocation
 

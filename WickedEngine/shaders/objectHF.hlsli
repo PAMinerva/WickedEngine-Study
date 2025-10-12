@@ -53,7 +53,7 @@
 
 PUSHCONSTANT(push, ObjectPushConstants);
 
-// Retrieves a ShaderGeometry from bindless_structured_geometries using a pair of indices:
+// Retrieves a ShaderGeometry from bindless_structured_geometry using a pair of indices:
 // a geometry buffer index (passed via constant buffer; see FrameCB.scene.geometrybuffer),
 // and a geometry index within that buffer (passed as a push constant).
 #define GetMesh() (load_geometry(push.geometryIndex))

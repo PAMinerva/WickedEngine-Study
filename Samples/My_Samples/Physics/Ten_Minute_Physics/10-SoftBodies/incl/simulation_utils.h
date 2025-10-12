@@ -7,7 +7,7 @@
 
 namespace simulation
 {
-	void init_physics();
+	void init_physics(uint64_t shaderID);
     void simulate(float dt);
 
     void update_mesh(const SoftBody& softbody, wi::scene::MeshComponent& mesh, bool updateGPUBuffer);
