@@ -6321,7 +6321,7 @@ std::mutex queue_locker;
 			nullptr
 		);
 #else
-		// Retrieve the render target for the current back buffer and set the clear color
+		// Retrieve the render target view for the current back buffer and set the clear color
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC RTV = {};
 		RTV.cpuDescriptor = internal_state->backbufferRTV[internal_state->GetBufferIndex()];
 		RTV.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;

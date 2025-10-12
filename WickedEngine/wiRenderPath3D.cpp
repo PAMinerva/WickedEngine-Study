@@ -382,6 +382,8 @@ namespace wi
 		{
 			visibility_main.flags &= ~wi::renderer::Visibility::ALLOW_OCCLUSION_CULLING;
 		}
+		// Update visibility of entities in the scene.
+		// This feature populates the visibility_main instance with indices of objects, lights, decals, and other visible elements
 		wi::renderer::UpdateVisibility(visibility_main);
 
 		if (visibility_main.planar_reflection_visible)

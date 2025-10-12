@@ -808,7 +808,9 @@ bool LoadShader(
 			}
 			wi::backlog::post("shader compiled: " + shaderbinaryfilename);
 
-			// Save the shader blob and create the root signature, then retun true if succeess
+			// Save the shader blob in the shader object passed as last parameter,
+			// create the relative root signature and store it in the shader object too.
+			// If all goes well, return true.
 			return device->CreateShader(stage, output.shaderdata, output.shadersize, &shader);
 		}
 		else
@@ -2842,8 +2844,10 @@ void Initialize()
 {
 	wi::Timer timer;
 
-	SetUpStates(); // Create various states such as sampler states, blend states, rasterizer states, etc.
-	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
+	// Create various states such as sampler states, blend states, rasterizer states, etc.
+	SetUpStates();
+	// Create a constant buffer for per-frame constant data (plus some other global buffers for various purposes) and three textures for various purposes
+	LoadBuffers();
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
 	LoadShaders(); // Compile and save various shaders and create different PSOs for different rendering purposes
@@ -3612,16 +3616,19 @@ void UpdateVisibility(Visibility& vis)
 	// Initialize visible indices:
 	vis.Clear();
 
+	// Set the frustum from the camera unless frozen (for debugging?)
 	if (!GetFreezeCullingCameraEnabled())
 	{
 		vis.frustum = vis.camera->frustum;
 	}
 
+	// Remove occlusion culling flag if disabled globally or frozen camera is enabled
 	if (!GetOcclusionCullingEnabled() || GetFreezeCullingCameraEnabled())
 	{
 		vis.flags &= ~Visibility::ALLOW_OCCLUSION_CULLING;
 	}
 
+	// If visibility for lights is enabled...
 	if (vis.flags & Visibility::ALLOW_LIGHTS)
 	{
 		// Cull lights:
@@ -3640,6 +3647,7 @@ void UpdateVisibility(Visibility& vis)
 
 			const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
 
+			// If the layer masks match...
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
 			{
 				const LightComponent& light = vis.scene->lights[args.jobIndex];
@@ -3679,6 +3687,7 @@ void UpdateVisibility(Visibility& vis)
 			}, sharedmemory_size);
 	}
 
+	// If visibility for objects is enabled...
 	if (vis.flags & Visibility::ALLOW_OBJECTS)
 	{
 		// Cull objects:
@@ -3695,6 +3704,8 @@ void UpdateVisibility(Visibility& vis)
 
 			const AABB& aabb = vis.scene->aabb_objects[args.jobIndex];
 
+			// If the layer masks match and the box containing the object is in the frustum...
+			// (layermasks are used to selectively group entities togheter for certain operations such as: picking, rendering, etc.)
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
 			{
 				// Local stream compaction:

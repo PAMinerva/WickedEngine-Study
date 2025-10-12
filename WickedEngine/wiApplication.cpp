@@ -137,7 +137,7 @@ namespace wi
 		if (!wi::initializer::IsInitializeFinished())
 		{
 			// Until engine is not loaded, present initialization screen...
-			// Among other things, this will set the global shader visible heap bounds to the command list
+			// Among other things, this will bound the global shader visible heap to the command list
 			CommandList cmd = graphicsDevice->BeginCommandList();
 			if (rendertargetPreHDR10.IsValid())
 			{
@@ -326,10 +326,11 @@ namespace wi
 		wi::profiler::EndRange(range); // Fixed Update
 
 		// Variable-timed update:
-		// Create some buffers to store various data: object, instance and material information, etc.
+		// Create some upload buffers to store various data: object, instance and material information, etc.
 		// The object information include the SRV indices to the various buffers (included in the global vertex buffer).
 		// The instance information include the world matrix, the offset to the vertex information in the global vertex buffer, etc.
 		// The material information include various material parameters.
+		// Nothing is loaded to GPU memory yet, this is just preparing the data for the upcoming rendering.
 		Update(deltaTime);
 
 		Render();

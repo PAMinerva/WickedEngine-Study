@@ -72,6 +72,7 @@ namespace wi::scene
 
 		StartBuildTopDownHierarchy();
 
+		// For instances it means all objects, hairs and emitters in the scene
 		instanceArraySize = objects.GetCount() + hairs.GetCount() + emitters.GetCount();
 		if (impostors.GetCount() > 0)
 		{
@@ -228,6 +229,13 @@ namespace wi::scene
 			});
 
 			// Scan mesh subset counts and skinning data sizes to allocate GPU geometry data:
+			// As for geometryAllocator, it will contain the total number of mesh subsets,
+			// and it will allow to contiguously store ShaderGeometry entries for the various
+			// subsets of each mesh (see RunMeshUpdateSystem below).
+			// Thanks to this, mesh.geometryOffset will hold the index of the first subset of that mesh
+			// and will we use it to index directly into geometryBuffer in the GPU (see RunObjectUpdateSystem).
+			// Note that thanks to different values per mesh for geometryOffset, we could store the ShaderGeometry entries in
+			// parallel without synchronization (again see RunMeshUpdateSystem below)
 			geometryAllocator.store(0u);
 			skinningAllocator.store(0u);
 			wi::jobsystem::Dispatch(ctx, (uint32_t)meshes.GetCount(), small_subtask_groupsize, [&](wi::jobsystem::JobArgs args) {
@@ -295,6 +303,7 @@ namespace wi::scene
 		}
 
 		// GPU subset count allocation is ready at this point:
+		// For geometry it means all mesh subsets in the scene, plus hairs and emitters
 		geometryArraySize = geometryAllocator.load();
 		geometryArraySize += hairs.GetCount();
 		geometryArraySize += emitters.GetCount();
@@ -367,7 +376,8 @@ namespace wi::scene
 
 		RunExpressionUpdateSystem(ctx);
 
-		// Store in geometryArrayMapped the SRV indices to the various buffers (included in the global vertex buffer)
+		// Store in geometryArrayMapped the SRV indices to the various buffers included in the global vertex buffer
+		// This is done per-mesh basis in parallel, taking in account the various subsets of each mesh
 		RunMeshUpdateSystem(ctx);
 
 		RunVideoUpdateSystem(ctx);
@@ -390,10 +400,15 @@ namespace wi::scene
 
 		wi::jobsystem::Wait(ctx); // dependencies
 
-		// Store in instanceArrayMapped various object parameters, such as the offset to the vertex information in the global vertex buffer
-		// Calculate if an object is visible or not (update occullusion culling for object)
+		// Store in instanceArrayMapped various object parameters, such as the world matrix, the index
+		// offset to index geometrBuffer for the subsets of the mesh referenced by the object, etc.
+		// We can write instanceArrayMapped in parallel because each object writes to its own region of the array.
+		// Update if an object is visible or not (real occlusion culling calculation is performed during rendering)
 		RunObjectUpdateSystem(ctx);
 
+		// Retrieve the transform component from the camera entities and update the camera component's matrices
+		// (projection, view, inverse view, etc.) accorddingly.
+		// Then use the updated projection matrix to update the frustum planes.
 		RunCameraUpdateSystem(ctx);
 
 		RunDecalUpdateSystem(ctx);
@@ -402,6 +417,8 @@ namespace wi::scene
 
 		RunForceUpdateSystem(ctx);
 
+		// Retrieve the transform component from the light entities and update the light
+		// component's members (position, direction, etc.) accordingly.
 		RunLightUpdateSystem(ctx);
 
 		RunParticleUpdateSystem(ctx);
@@ -841,6 +858,7 @@ namespace wi::scene
 		}
 		else
 		{
+			// GetDescriptorIndex returns the SRV index stored in the SingleDesriptor member of the GPUBuffer type
 			shaderscene.instancebuffer = device->GetDescriptorIndex(&instanceBuffer, SubresourceType::SRV);
 			shaderscene.geometrybuffer = device->GetDescriptorIndex(&geometryBuffer, SubresourceType::SRV);
 			shaderscene.materialbuffer = device->GetDescriptorIndex(&materialBuffer, SubresourceType::SRV);
@@ -4000,6 +4018,7 @@ namespace wi::scene
 					const MaterialComponent* material = materials.GetComponent(subset.materialID);
 					if (material != nullptr)
 					{
+						// Retrieve the index to index the component vector (of MaterialComponent(s)) in ComponentManager<MaterialComponent>
 						subset.materialIndex = (uint32_t)materials.GetIndex(subset.materialID);
 						if (material->IsDoubleSided())
 						{
@@ -4412,9 +4431,9 @@ namespace wi::scene
 
 				const TransformComponent& transform = *transforms.GetComponent(entity);
 
-				// Get the world matrix associated with the mesh,build the 8 corners of the bounding box,
+				// Get the world matrix associated with the mesh, build the 8 corners of the bounding box,
 				// transform them to world space, calculate the minimum and maximum points and
-				// build the world space bounding box from them.
+				// build a wi::primitive AABB in world space from them.
 				XMMATRIX W = XMLoadFloat4x4(&transform.world);
 				aabb = mesh.aabb.transform(W);
 
