@@ -378,6 +378,8 @@ namespace wi
 		{
 			visibility_main.flags &= ~wi::renderer::Visibility::ALLOW_OCCLUSION_CULLING;
 		}
+		// Add occlusion culling queries for various entities, and populates visibility_main
+		// with indices to index into some important scene's arrays during wi::renderer::OcclusionCulling_Render
 		wi::renderer::UpdateVisibility(visibility_main);
 
 		if (visibility_main.planar_reflection_visible)
@@ -400,7 +402,7 @@ namespace wi
 
 		XMUINT2 internalResolution = GetInternalResolution();
 
-		// update per frame data (scene, camera, etc)
+		// update per frame data (scene, properties of light sources, etc)
 		wi::renderer::UpdatePerFrameData(
 			*scene,
 			visibility_main,
@@ -430,6 +432,7 @@ namespace wi
 
 		camera_reflection.jitter = XMFLOAT2(0, 0);
 
+        // Update camera matrices: view, projection, viewprojection, etc.
 		camera->UpdateCamera();
 		if (visibility_main.planar_reflection_visible)
 		{
@@ -855,7 +858,8 @@ namespace wi
 		wi::jobsystem::Execute(ctx, [this, cmd](wi::jobsystem::JobArgs args) {
 			GraphicsDevice* device = wi::graphics::GetDevice();
 
-			// Logically bind (on CPU side) the camera data to a binding slot and mark the related root parameter as dirty.
+			// Create a frame buffer (a termporary allocation for this frame) where to store per-frame data for the camera
+			// Logically bind (on CPU side) the frame buffer to a binding slot and mark the related root parameter as dirty.
 			// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them)
 			wi::renderer::BindCameraCB(
 				*camera,
@@ -1519,6 +1523,16 @@ namespace wi
 				device->EventEnd(cmd);
 			}
 
+			// A render pass encapsulates:
+			// - Which GPU resources (textures) will be written to
+			// - How to initialize these resources at the start (load operations)
+			// - What to do with the contents at the end (store operations)
+			// - Automatic resource state transitions that works like IMAGE_BARRIERs, but can be more optimal (layout operations)
+			//
+			// The render pass remains active until RenderPassEnd(), which executes the
+			// store operations and final resource state transitions.
+			//
+			// See Wicked Engine documentation for more information about Render Passes.
 			RenderPassImage rp[4] = {};
 			uint32_t rp_count = 0;
 			rp[rp_count++] = RenderPassImage::RenderTarget(
@@ -1537,6 +1551,10 @@ namespace wi
 				ResourceState::DEPTHSTENCIL,
 				ResourceState::DEPTHSTENCIL
 			);
+			// Use the RenderPassImage(s) passed as first argument to initialize the native
+			// API descriptors (RTV, DSV, etc.) need to begin the render pass (by calling RenderPassBegin on the command list).
+			// Also define and set the resource barries need to transition the resources to the correct states specified by the layout operations.
+			// It also store the render pass info in the command list for later use.
 			device->RenderPassBegin(rp, rp_count, cmd, RenderPassFlags::ALLOW_UAV_WRITES);
 
 			if (visibility_shading_in_compute)
@@ -1554,6 +1572,11 @@ namespace wi
 				auto range = wi::profiler::BeginRangeGPU("Opaque Scene", cmd);
 
 				// Foreground:
+                // You can use SetForeground on an ObjectComponent to mark it as foreground object to be
+                // rendered always on top of other objects.
+                // To this purpose, the depth range is set to [0.99, 1.0] here, so that foreground objects
+                // are mapped to the depth range region that is closest to the camera (remember that
+                // we are using reversed Z-buffer).
 				vp.min_depth = 1 - foreground_depth_range;
 				vp.max_depth = 1;
 				device->BindViewports(1, &vp, cmd);
