@@ -1399,7 +1399,9 @@ namespace wi::scene
 		// still stores a valid bindless index (if bindless is available) or -1 to revert to a handle.
 		// In any case, GetDescriptorIndex() will use subresource_srv to return the index stored in the SingleDescriptor
 		// created in createSubresource(), wich will be either a bindless index or -1.
-		// assert(ib.IsValid());
+		// These SRVs will be stored in a ShaderGeometry instance and written to an upload buffer (see Scene::RunMeshUpdateSystem,
+		// called by Scene::Update) and successively copied to a default buffer in wi::renderer::UpdateRenderData, called
+		// by wi:RenderPath3D::Render, called by Application::Render, called by Application::Run, called by main.
 
 		const Format ib_format = GetIndexFormat() == IndexBufferFormat::UINT32 ? Format::R32_UINT : Format::R16_UINT;
 
@@ -2673,6 +2675,16 @@ namespace wi::scene
 			}
 			else
 			{
+				// REVERSE Z-BUFFER IMPLEMENTATION:
+				// Note the swapped near/far parameters (zFarP, zNearP instead of zNearP, zFarP).
+				//
+				// Benefits:
+				//   - Exploits floating-point precision distribution (more precision near zero)
+				//   - Swapping near and far planes, objects far from camera get better depth precision, reducing Z-fighting
+				//   - Requires depth comparison mode GREATER/GREATER_EQUAL instead of LESS/LESS_EQUAL
+				//
+				// Notes:
+				//   - Shaders must be aware of reversed depth (see lightCullingCS.hlsl)
 				P = XMMatrixPerspectiveFovLH(fov, width / height, zFarP, zNearP); // reverse zbuffer!
 			}
 
