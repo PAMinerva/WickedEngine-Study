@@ -47,8 +47,7 @@ void init_wicked_scene()
 
     // Directional Light
     {
-        auto lightEntity =
-            scene.Entity_CreateLight("DirLight", XMFLOAT3(0, 3, 0));
+        auto lightEntity = scene.Entity_CreateLight("DirLight", XMFLOAT3(0, 3, 0));
         auto &light = *scene.lights.GetComponent(lightEntity);
         light.SetType(wi::scene::LightComponent::LightType::DIRECTIONAL);
         light.intensity = 1.0f;
@@ -231,15 +230,26 @@ void SampleRenderPath::Load()
     RenderPath3D::Load();
 }
 
+void SampleRenderPath::FixedUpdate()
+{
+	// simulation::simulate(0);
+	//
+	// for (auto &object : gPhysicsScene.objects)
+	// {
+	// 	auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
+	// 	simulation::update_mesh(*object->softBody, *meshComponent, true);
+	// }
+}
+
 void SampleRenderPath::Update(float dt)
 {
 	simulation::simulate(dt);
 
-    for (auto &object : gPhysicsScene.objects)
-    {
-        auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
+	for (auto &object : gPhysicsScene.objects)
+	{
+		auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
 		simulation::update_mesh(*object->softBody, *meshComponent, true);
-    }
+	}
 
     // --- GRAB LOGIC ---
     auto pointer = wi::input::GetPointer();

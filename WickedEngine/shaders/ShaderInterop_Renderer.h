@@ -1318,6 +1318,9 @@ struct alignas(16) FrameCB
 	uint decals;
 	uint forces;
 
+	// Each shader property holds properties for a specific entity type (light, decal and probe)
+	// for example, a light entity will have its own light properties (position, direction, range, etc.)
+	// stored here as a ShaderEntity element.
 	ShaderEntity entityArray[SHADER_ENTITY_COUNT];
 	float4x4 matrixArray[SHADER_ENTITY_COUNT];
 };

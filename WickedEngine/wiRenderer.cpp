@@ -809,7 +809,9 @@ bool LoadShader(
 			}
 			wi::backlog::post("shader compiled: " + shaderbinaryfilename);
 
-			// Save the shader blob and create the root signature, then retun true if succeess
+			// Save the shader blob in the shader object passed as last parameter,
+			// create the relative root signature and store it in the shader object too.
+			// If all goes well, return true.
 			return device->CreateShader(stage, output.shaderdata, output.shadersize, &shader);
 		}
 		else
@@ -2866,8 +2868,10 @@ void Initialize()
 {
 	wi::Timer timer;
 
-	SetUpStates(); // Create various states such as sampler states, blend states, rasterizer states, etc.
-	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
+	// Create various states such as sampler states, blend states, rasterizer states, etc.
+	SetUpStates();
+	// Create a constant buffer for per-frame constant data (plus some other global buffers for various purposes) and three textures for various purposes
+	LoadBuffers();
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
 	LoadShaders(); // Compile and save various shaders and create different PSOs for different rendering purposes
@@ -3642,7 +3646,9 @@ void UpdateVisibility(Visibility& vis)
 	static_assert(groupSize <= 256); // groupIndex must fit into uint8_t stream compaction element
 	struct StreamCompaction
 	{
+		// List of groupIndex used to index into some important scene's arrays
 		uint8_t list[groupSize];
+		// Number of elements in the list, corresponding to how many entities are within the frustum in this work group
 		uint8_t count;
 	};
 	static constexpr size_t sharedmemory_size = sizeof(StreamCompaction);
@@ -3650,16 +3656,19 @@ void UpdateVisibility(Visibility& vis)
 	// Initialize visible indices:
 	vis.Clear();
 
+	// Set the frustum from the camera unless frozen (for debugging?)
 	if (!GetFreezeCullingCameraEnabled())
 	{
 		vis.frustum = vis.camera->frustum;
 	}
 
+	// Remove occlusion culling flag if disabled globally or frozen camera is enabled
 	if (!GetOcclusionCullingEnabled() || GetFreezeCullingCameraEnabled())
 	{
 		vis.flags &= ~Visibility::ALLOW_OCCLUSION_CULLING;
 	}
 
+	// If visibility for lights is enabled...
 	if (vis.flags & Visibility::ALLOW_LIGHTS)
 	{
 		// Cull lights:
@@ -3678,6 +3687,7 @@ void UpdateVisibility(Visibility& vis)
 
 			const AABB& aabb = vis.scene->aabb_lights[args.jobIndex];
 
+			// If the layer masks match...
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
 			{
 				const LightComponent& light = vis.scene->lights[args.jobIndex];
@@ -3717,6 +3727,7 @@ void UpdateVisibility(Visibility& vis)
 			}, sharedmemory_size);
 	}
 
+	// If visibility for objects is enabled...
 	if (vis.flags & Visibility::ALLOW_OBJECTS)
 	{
 		// Cull objects:
@@ -3733,6 +3744,8 @@ void UpdateVisibility(Visibility& vis)
 
 			const AABB& aabb = vis.scene->aabb_objects[args.jobIndex];
 
+			// If the layer masks match and the box containing the object is in the frustum...
+			// (layermasks are used to selectively group entities togheter for certain operations such as: picking, rendering, etc.)
 			if ((aabb.layerMask & vis.layerMask) && vis.frustum.CheckBoxFast(aabb))
 			{
 				// Local stream compaction:
@@ -3800,6 +3813,10 @@ void UpdateVisibility(Visibility& vis)
 				uint32_t groupOffset = args.groupID * groupSize;
 				for (uint32_t i = 0; i < stream_compaction.count; ++i)
 				{
+					// Write the job indices to global memory.
+					// Since we are using groupIndex in the local list, we need to offset it by the groupID.
+					// This will allow us to index into occlusion_results_objects and aabb_objects correctly in wi::renderer::OcclusionCulling_Render
+					// Note how occlusion_results_objects and objects are indexed by jobIndex in the above code!
 					vis.visibleObjects[prev_count + i] = groupOffset + stream_compaction.list[i];
 				}
 			}
@@ -3940,7 +3957,7 @@ void UpdateVisibility(Visibility& vis)
 	wi::jobsystem::Wait(ctx);
 
 	// finalize stream compaction:
-	vis.visibleObjects.resize((size_t)vis.object_counter.load());
+	vis.visibleObjects.resize((size_t)vis.object_counter.load()); // resize preserves existing elements
 	vis.visibleLights.resize((size_t)vis.light_counter.load());
 
 	if (vis.scene->weather.IsOceanEnabled())
@@ -5090,7 +5107,8 @@ void UpdateRenderData(
 
 	PushBarrier(GPUBarrier::Buffer(&vis.scene->meshletBuffer, ResourceState::SHADER_RESOURCE, ResourceState::UNORDERED_ACCESS));
 
-	// Barries for frame cb, instance buffer, geometry buffer and material buffer (see Scene::Update in wiScene.cpp)
+	// Barries for copying frame cb, instance buffer, geometry buffer and material buffer (see Scene::Update in wiScene.cpp)
+	// from upload buffers to gpu local buffers
 	PushBarrier(GPUBarrier::Buffer(&buffers[BUFFERTYPE_FRAMECB], ResourceState::CONSTANT_BUFFER, ResourceState::COPY_DST));
 	if (vis.scene->instanceBuffer.IsValid())
 	{
@@ -5108,10 +5126,11 @@ void UpdateRenderData(
 	{
 		PushBarrier(GPUBarrier::Buffer(&vis.scene->skinningBuffer, ResourceState::SHADER_RESOURCE, ResourceState::COPY_DST));
 	}
-	FlushBarriers(cmd);
+	FlushBarriers(cmd); // set the barriers in the command list
 
+	// Create an upload buffer, write frame constant buffer data into it, and schedule a copy to the GPU buffer
 	device->UpdateBuffer(&buffers[BUFFERTYPE_FRAMECB], &frameCB, cmd);
-	PushBarrier(GPUBarrier::Buffer(&buffers[BUFFERTYPE_FRAMECB], ResourceState::COPY_DST, ResourceState::CONSTANT_BUFFER));
+	PushBarrier(GPUBarrier::Buffer(&buffers[BUFFERTYPE_FRAMECB], ResourceState::COPY_DST, ResourceState::CONSTANT_BUFFER)); // restore old state
 
 	if (vis.scene->instanceBuffer.IsValid() && vis.scene->instanceArraySize > 0)
 	{
@@ -5188,7 +5207,7 @@ void UpdateRenderData(
 	wi::profiler::EndRange(prof_updatebuffer_cpu);
 	wi::profiler::EndRange(prof_updatebuffer_gpu);
 
-	// Logically bind (on CPU side) the frame data to a binding slot and mark the related root parameter as dirty.
+	// Logically bind (on CPU side) the buffer including the frame data to a binding slot and mark the related root parameter as dirty.
 	// (the same binding slot can refer to different resources in the same buffer, so an offset is used to differentiate them;
 	// however, in this case, the slot is different from the one used by wi::renderer::BindCameraCB, called by wi::RenderPath3D::Render,
 	// called by Application::Render, called by Application::Run, called by main)
@@ -5859,11 +5878,14 @@ void OcclusionCulling_Render(const CameraComponent& camera, const Visibility& vi
 				aabb._max.x += 0.001f;
 				aabb._max.y += 0.001f;
 				aabb._max.z += 0.001f;
+				// create both a scaling and a translation matrix from aabb info
+				// then multiply these matrix and return the result as world matrix which can be
+				// used as push constant to transform a cube from object space to world space
 				const XMMATRIX transform = aabb.getAsBoxMatrix() * VP;
 				device->PushConstants(&transform, sizeof(transform), cmd);
 
 				// render bounding box to later read the occlusion status
-				device->QueryBegin(&queryHeap, queryIndex, cmd);
+				device->QueryBegin(&queryHeap, queryIndex, cmd); // query heap is created in Scene::Update in wiScene.cpp
 				device->Draw(14, 0, cmd);
 				device->QueryEnd(&queryHeap, queryIndex, cmd);
 			}
@@ -5928,6 +5950,7 @@ void OcclusionCulling_Resolve(const Visibility& vis, CommandList cmd)
 	uint32_t queryCount = vis.scene->queryAllocator.load();
 
 	// Resolve into readback buffer:
+	// Extracts data from a query heap and writes it into query result buffer
 	device->QueryResolve(
 		&queryHeap,
 		0,
@@ -7249,6 +7272,11 @@ void DrawScene(
 	if (opaque || transparent)
 	{
 		renderQueue.init();
+		// visibleObjects contains the job indices of visible objects (see UpdateVisibility above)
+		// However, since we have as many jobs as the number of objects in the scene, and we use
+		// the job index to index in the scene->objects array and to retrieve its occlusion result (again, see UpdateVisibility),
+		// we can directly use the job indices in visibleObjects to access scene objects and related
+		// occlusione result here as well.
 		for (uint32_t instanceIndex : vis.visibleObjects)
 		{
 			if (occlusion && vis.scene->occlusion_results_objects[instanceIndex].IsOccluded())
@@ -11251,6 +11279,9 @@ void BindCameraCB(
 	shadercam.texture_vxgi_specular_index = camera.texture_vxgi_specular_index;
 	shadercam.texture_reprojected_depth_index = camera.texture_reprojected_depth_index;
 
+	// see globals.hlsli, ShaderInterop.h and ShaderInterop_Renderer.h
+	// to find how the slot is mapped to the shader register and how
+	// this info is recorded in the root signature.
 	device->BindDynamicConstantBuffer(cb, CBSLOT_RENDERER_CAMERA, cmd);
 }
 

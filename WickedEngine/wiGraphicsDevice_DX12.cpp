@@ -1040,6 +1040,8 @@ namespace dx12_internal
 	{
 		static constexpr uint8_t INVALID_ROOT_PARAMETER = 0xFF;
 		// These map shader registers in the binding space (space=0) to root parameters
+		// However, note that GraphicsDevice_DX12::BindResource(s) map slots to shader registers
+		// so that we can use slots to index both resources and related root parameters.
 		uint8_t CBV[DESCRIPTORBINDER_CBV_COUNT];
 		uint8_t SRV[DESCRIPTORBINDER_SRV_COUNT];
 		uint8_t UAV[DESCRIPTORBINDER_UAV_COUNT];
@@ -6343,7 +6345,7 @@ std::mutex queue_locker;
 			nullptr
 		);
 #else
-		// Retrieve the render target for the current back buffer and set the clear color
+		// Retrieve the render target view for the current back buffer and set the clear color
 		D3D12_RENDER_PASS_RENDER_TARGET_DESC RTV = {};
 		RTV.cpuDescriptor = internal_state->backbufferRTV[internal_state->GetBufferIndex()];
 		RTV.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -6969,17 +6971,27 @@ std::mutex queue_locker;
 		assert(slot < DESCRIPTORBINDER_CBV_COUNT);
 		CommandList_DX12& commandlist = GetCommandList(cmd);
 		auto& binder = commandlist.binder;
+		// If the resource associated with the slot is the one passed as parameter, we can skip rebinding it
 		if (binder.table.CBV[slot].internal_state != buffer->internal_state || binder.table.CBV_offset[slot] != offset)
 		{
 			binder.table.CBV[slot] = *buffer;
 			binder.table.CBV_offset[slot] = offset;
 
+			// If no PSO has been bound to the command list yet, the optimizer_graphics pointer
+			// will be null and this block will be skipped.
+			// This is usually the case unless RenderMeshes is called, which selects and
+			// binds the appropriate PSO variant to the command list.
 			if (binder.optimizer_graphics != nullptr)
 			{
 				const RootSignatureOptimizer& optimizer = *(RootSignatureOptimizer*)binder.optimizer_graphics;
 				if (optimizer.CBV[slot] != RootSignatureOptimizer::INVALID_ROOT_PARAMETER)
 				{
-					// Mark the root parameter as dirty
+					// Mark the root parameter as dirty by setting the corresponding bit in the dirty mask:
+					// See RootSignatureOptimizer::init, which is called during PSO creation, so that
+					// it is safe to access optimizer.CBV[] here, because a PSO has been bound before.
+					// (see GraphicsDevice_DX12::CreatePipelineState, called by wi::renderer::LoadShaders,
+					// called by wi::renderer::Initialize, called by wi::Initializer::InitializeComponentsAsync,
+					// called by wi::Application::Initialize)
 					binder.dirty_graphics |= 1ull << optimizer.CBV[slot];
 				}
 			}
