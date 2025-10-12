@@ -234,7 +234,10 @@ void SoftBody::SolveEdges(float compliance, float dt)
         // Normalized direction vector of the edge (from p1 towards p0)
         XMVECTOR dir = XMVectorScale(diff, 1.0f / len);
 
-        // Compute the constraint and its scaling factor
+        // Retrieve the current value of the edge constraint and compute the scaling factor to apply to the positions
+		// For an edge (distance) constraint C, the gradient of C is a unit vector along the edge,
+		// so its squared modulo is 1 and the denominator simplifies to w0 + w1 (the sum of inverse masses).
+		// That’s why here the gradient does not appear explicitly.
         float restLen = edgeLengths[i];
         float C = len - restLen;
         float s = -C / (w + alpha);
@@ -260,7 +263,10 @@ void SoftBody::SolveVolumes(float compliance, float dt)
         float w = 0.0f;
         XMVECTOR grads[4];
 
-        // Compute gradients for each vertex of the tetrahedron
+        // Compute gradients for each vertex of the tetrahedron:
+		// In tetrahedron volume constraints, the gradient w.r.t. each vertex is given by
+		// 1/6 * (edge1 x edge2), where edge1 and edge2 are two edges of the opposite face,
+		// where the vertex "see" edge1 rotates counter-clockwise to edge2.
         for (int j = 0; j < 4; ++j)
         {
             int id0 = ids[volIdOrder[j][0]];
@@ -275,6 +281,7 @@ void SoftBody::SolveVolumes(float compliance, float dt)
             XMVECTOR d2 = XMVectorSubtract(v2, v0);
             grads[j] = XMVectorScale(XMVector3Cross(d1, d2), 1.0f / 6.0f);
 
+			// Note that here w includes the squared length of the gradient vector
             w += invMass[ids[j]] * XMVectorGetX(XMVector3LengthSq(grads[j]));
         }
 

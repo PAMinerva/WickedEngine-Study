@@ -12,10 +12,10 @@ namespace simulation
 {
 	void init_physics()
 	{
-		SoftBodyParams params{
-			.rotate = {0.0f, 0.0f, 2.7f},
-			.edgeCompliance = 100.0f,
-			.volCompliance = 0.0f};
+		SoftBodyParams params{};
+		params.rotate = {0.0f, 0.0f, 2.7f};
+		params.edgeCompliance = 100.0f;
+		params.volCompliance = 0.0f;
 
 		auto instance = create_softbody_instance(params);
 		int numTets = instance->softBody->numTets;
@@ -39,7 +39,8 @@ namespace simulation
 			for (auto &instance : gPhysicsScene.objects)
 				instance->softBody->PreSolve(subdt, gPhysicsScene.gravity);
 
-			// 2. Solve: constraints (edge, volume, etc.)
+			// 2. Solve: project constraints (edge, volume, etc.)
+			// Projecting a set of points according to a constraint means moving the points such that they satisfy the constraint
 			for (auto &instance : gPhysicsScene.objects)
 				instance->softBody->Solve(subdt);
 
@@ -61,10 +62,11 @@ namespace simulation
 		std::uniform_real_distribution<float> dist_y(0, a);
 		std::uniform_real_distribution<float> dist_z(0, a);
 
-		SoftBodyParams params{
-			.translate = {dist_x(gen), dist_y(gen), dist_z(gen)},
-			.edgeCompliance = 100.0f,
-			.volCompliance = 0.0f};
+		SoftBodyParams params{};
+		params.translate = {dist_x(gen), dist_y(gen), dist_z(gen)};
+		params.edgeCompliance = 100.0f;
+		params.volCompliance = 0.0f;
+
 		auto instance = create_softbody_instance(params);
 		gPhysicsScene.objects.push_back(std::move(instance));
 
@@ -228,9 +230,10 @@ std::unique_ptr<SoftBodyInstance> create_softbody_instance(const SoftBodyParams 
 		mesh.subsets.push_back(wi::scene::MeshComponent::MeshSubset());
 		mesh.subsets.back().materialID = mat_entity;
 		mesh.subsets.back().indexOffset = 0;
-		mesh.subsets.back().indexCount = (uint32_t)bunnyMesh.tetSurfaceTriIds.size();
+		mesh.subsets.back().indexCount = (uint32_t)bunnyMesh.tetSurfaceTriIds.size(); // tetSurfaceTriIds contains indices of surface triangles only
 
-		// We are only intrested in surface triangles of the tetrahedral mesh for rendering purposes
+		// Compute the number of surface triangles:
+		// For rendering purposes, we are only interested in surface triangles of the tetrahedral mesh.
 		size_t numTris = bunnyMesh.tetSurfaceTriIds.size() / 3;
 		mesh.vertex_positions.reserve(numTris * 3);
 		mesh.vertex_normals.reserve(numTris * 3);
