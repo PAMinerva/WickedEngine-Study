@@ -13,6 +13,8 @@ static float camera_pos[3] = {0.0f, 1.0f, -3.0f};
 static float camera_ang[3] = {8.0f, 0.0f, 0.0f};
 wi::scene::TransformComponent camera_transform;
 
+static uint64_t shader_id = 0;
+
 static bool mouse_down = false;
 static Grabber grabber;
 
@@ -47,8 +49,7 @@ void init_wicked_scene()
 
     // Directional Light
     {
-        auto lightEntity =
-            scene.Entity_CreateLight("DirLight", XMFLOAT3(0, 3, 0));
+        auto lightEntity = scene.Entity_CreateLight("DirLight", XMFLOAT3(0, 3, 0));
         auto &light = *scene.lights.GetComponent(lightEntity);
         light.SetType(wi::scene::LightComponent::LightType::DIRECTIONAL);
         light.intensity = 1.0f;
@@ -79,6 +80,59 @@ void init_wicked_scene()
         // auto &cam = wi::scene::GetCamera();
         // cam.TransformCamera(transform);
     }
+}
+
+void create_custom_shader()
+{
+	// wi::initializer::WaitForInitializationsToFinish();
+
+	using namespace wi::graphics;
+	using namespace wi::renderer;
+
+	GraphicsDevice* device = wi::graphics::GetDevice();
+
+	RasterizerState rs_clockwise;
+	rs_clockwise.fill_mode = FillMode::SOLID;
+	rs_clockwise.cull_mode = CullMode::BACK;
+	rs_clockwise.front_counter_clockwise = false;
+	rs_clockwise.depth_clip_enable = true;
+
+	PipelineStateDesc desc;
+	PipelineState pso;
+
+	CustomShader customShader;
+	customShader.name = "ClockwiseMesh";
+	customShader.filterMask = wi::enums::FILTER_OPAQUE;
+
+	// Prepass
+	desc.vs = GetShader(wi::enums::VSTYPE_OBJECT_PREPASS);
+	desc.ps = GetShader(wi::enums::PSTYPE_OBJECT_PREPASS);
+	desc.dss = GetDepthStencilState(wi::enums::DSSTYPE_DEFAULT);
+	desc.rs = &rs_clockwise;
+
+	device->CreatePipelineState(&desc, &pso);
+	customShader.pso[wi::enums::RENDERPASS_PREPASS] = pso;
+
+	// Main Pass
+	desc.vs = GetShader(wi::enums::VSTYPE_OBJECT_COMMON);
+	desc.ps = GetShader(wi::enums::PSTYPE_OBJECT_PERMUTATION_BEGIN);
+	desc.dss = GetDepthStencilState(wi::enums::DSSTYPE_DEPTHREADEQUAL);
+	desc.bs = GetBlendState(wi::enums::BSTYPE_OPAQUE);
+
+	device->CreatePipelineState(&desc, &pso);
+	customShader.pso[wi::enums::RENDERPASS_MAIN] = pso;
+
+	// Shadow Pass
+	desc.vs = GetShader(wi::enums::VSTYPE_SHADOW);
+	desc.ps = nullptr;
+	desc.bs = GetBlendState(wi::enums::BSTYPE_OPAQUE);
+	desc.rs = GetRasterizerState(wi::enums::RSTYPE_SHADOW);
+	desc.dss = GetDepthStencilState(wi::enums::DSSTYPE_SHADOW);
+
+	device->CreatePipelineState(&desc, &pso);
+	customShader.pso[wi::enums::RENDERPASS_SHADOW] = pso;
+
+	shader_id = RegisterCustomShader(customShader);
 }
 
 wi::gui::Label label;
@@ -131,7 +185,7 @@ void init_gui(SampleRenderPath &srp)
 			}
 
 			gPhysicsScene.objects.clear();
-			simulation::init_physics();
+			simulation::init_physics(shader_id);
 		});
 	gui.AddWidget(&restart);
 
@@ -221,25 +275,71 @@ void SampleApp::Initialize()
 
 void SampleRenderPath::Load()
 {
+	// create_custom_shader();
+
     init_gui(*this);
 
     init_wicked_scene();
 
-	simulation::init_physics();
+	// simulation::init_physics(shaderID);
 
     // Here we call the base class Load method in case it has any additional setup to do.
     RenderPath3D::Load();
 }
 
+void SampleRenderPath::FixedUpdate()
+{
+	// simulation::simulate(0);
+	//
+	// for (auto &object : gPhysicsScene.objects)
+	// {
+	// 	auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
+	// 	simulation::update_mesh(*object->softBody, *meshComponent, true);
+	// }
+}
+
 void SampleRenderPath::Update(float dt)
 {
+	static wi::jobsystem::context init_ctx;
+    static bool isCustomShaderReady = false;
+    static bool initializationStarted = false;
+
+	// Create custom shader and dependent physics simulation initialization in a background job
+	// to avoid stalling the main thread.
+	// This is because shader compilation may take some time, especially for the shaders in the
+	// [PSTYPE_OBJECT_PERMUTATION_BEGIN, PSTYPE_OBJECT_PERMUTATION_END] range and also in the
+	// [PSTYPE_OBJECT_TRANSPARENT_PERMUTATION_BEGIN, PSTYPE_OBJECT_TRANSPARENT_PERMUTATION_END] range.
+	// PSOs using these shaders may take significant time to compile in GPU machine code so the PSO creation
+	// and relative shader comppilation in GPU machine code continues in background even after engine was
+	// initialized to avoid stalls.
+    if (!initializationStarted)
+    {
+        initializationStarted = true;
+
+        wi::jobsystem::Execute(init_ctx,
+							   [](wi::jobsystem::JobArgs args)
+								{
+									create_custom_shader();
+									simulation::init_physics(shader_id);
+									isCustomShaderReady = true;
+								});
+    }
+
+    if (!isCustomShaderReady)
+		return;
+
+	// --- PHYSICS SIMULATION ---
 	simulation::simulate(dt);
 
-    for (auto &object : gPhysicsScene.objects)
-    {
-        auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
+	// Update mesh data according to the current state of each SoftBody object.
+	// Then upload the updated mesh data to the GPU buffers.
+	// (remember that physics simulation updates the vertex positions of the SoftBody objects
+	// and we need to reflect these changes in the mesh components used for rendering).
+	for (auto &object : gPhysicsScene.objects)
+	{
+		auto meshComponent = wi::scene::GetScene().meshes.GetComponent(object->entity);
 		simulation::update_mesh(*object->softBody, *meshComponent, true);
-    }
+	}
 
     // --- GRAB LOGIC ---
     auto pointer = wi::input::GetPointer();
