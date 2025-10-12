@@ -156,6 +156,10 @@ namespace wi::scene
 		// Occlusion query state:
 		struct OcclusionResult
 		{
+			// Store a query ID (for each buffered frame) to be used as an index into the query result buffer
+			// where the actual occlusion result will be stored after GPU execution.
+			// Value of -1 indicates no query was allocated for that frame buffer.
+			// The array size matches GraphicsDevice::GetBufferCount() to support multi-buffered rendering.
 			int occlusionQueries[wi::graphics::GraphicsDevice::GetBufferCount()];
 			// occlusion result history bitfield (32 bit->32 frame history)
 			uint32_t occlusionHistory = ~0u;
@@ -174,7 +178,7 @@ namespace wi::scene
 		wi::graphics::GPUBuffer queryResultBuffer[arraysize(OcclusionResult::occlusionQueries)];
 		wi::graphics::GPUBuffer queryPredicationBuffer;
 		uint32_t queryheap_idx = 0;
-		mutable std::atomic<uint32_t> queryAllocator{ 0 };
+		mutable std::atomic<uint32_t> queryAllocator{ 0 }; // cleared at frame start in Scene::Update
 
 		// Surfel GI resources:
 		struct SurfelGI

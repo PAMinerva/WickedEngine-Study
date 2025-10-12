@@ -15,6 +15,10 @@
 				  tetrahedron by referencing two vertices in 'verts'.
     - tetSurfaceTriIds: Array of indices, where each group of 3 indices defines a
 						triangle on the surface of the mesh by referencing three vertices in 'verts'.
+						Vertices of each triangle are ordered clockwise when viewed from outside.
+
+	ps. Obviously, when referencing vertices in 'verts', the stride must be considered.
+        For example: index * 3 + 0 for x, index * 3 + 1 for y, index * 3 + 2 for z.
 */
 struct TetMesh
 {
