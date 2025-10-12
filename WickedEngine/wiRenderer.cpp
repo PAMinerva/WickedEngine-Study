@@ -808,7 +808,9 @@ bool LoadShader(
 			}
 			wi::backlog::post("shader compiled: " + shaderbinaryfilename);
 
-			// Save the shader blob and create the root signature, then retun true if succeess
+			// Save the shader blob in the shader object passed as last parameter,
+			// create the relative root signature and store it in the shader object too.
+			// If all goes well, return true.
 			return device->CreateShader(stage, output.shaderdata, output.shadersize, &shader);
 		}
 		else
@@ -2842,8 +2844,10 @@ void Initialize()
 {
 	wi::Timer timer;
 
-	SetUpStates(); // Create various states such as sampler states, blend states, rasterizer states, etc.
-	LoadBuffers(); // Create a constant buffer for per-frame constant data and three textures for various purposes
+	// Create various states such as sampler states, blend states, rasterizer states, etc.
+	SetUpStates();
+	// Create a constant buffer for per-frame constant data (plus some other global buffers for various purposes) and three textures for various purposes
+	LoadBuffers();
 
 	static wi::eventhandler::Handle handle2 = wi::eventhandler::Subscribe(wi::eventhandler::EVENT_RELOAD_SHADERS, [](uint64_t userdata) { LoadShaders(); });
 	LoadShaders(); // Compile and save various shaders and create different PSOs for different rendering purposes
