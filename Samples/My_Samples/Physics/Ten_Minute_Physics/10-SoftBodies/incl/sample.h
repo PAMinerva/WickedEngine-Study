@@ -10,6 +10,7 @@ public:
 
 	void Load() override;
 	void Update(float dt) override;
+	void FixedUpdate() override;
 };
 
 class SampleApp : public wi::Application

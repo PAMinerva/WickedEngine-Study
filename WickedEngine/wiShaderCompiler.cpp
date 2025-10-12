@@ -1123,6 +1123,10 @@ namespace wi::shadercompiler
 		{
 			return true; // no shader file = outdated shader, apps can attempt to rebuild it
 		}
+
+		// wishadermeta file contains the list of dependencies of the shader:
+		// usually the hlsl file itself containing the shader code plus its included files like globals.hlsli, ShaderInterop.h, etc.
+		// no wishadermeta file = no dependencies = no rebuild needed
 		std::string dependencylibrarypath = wi::helper::ReplaceExtension(shaderfilename, shadermetaextension);
 		if (!wi::helper::FileExists(dependencylibrarypath))
 		{
@@ -1146,6 +1150,7 @@ namespace wi::shadercompiler
 				{
 					const uint64_t dep_tim = wi::helper::FileTimestamp(dependencypath);
 
+					// if any dependency is newer than the shader, the shader is outdated
 					if (tim < dep_tim)
 					{
 						return true;
