@@ -370,12 +370,6 @@ void update_tetMesh(const TetraMesh& tetMesh, wi::scene::MeshComponent &mesh,
     }
 }
 
-void create_TetraDragon_Meshes()
-{
-    using namespace wi::scene;
-    using namespace wi::ecs;
-}
-
 void computeSkinningInfo(SoftBodySkinning &softBodyInstance)
 {
     // Initialize the spatial hashing structures for the visual mesh vertices
@@ -538,7 +532,7 @@ void computeSkinningInfo(SoftBodySkinning &softBodyInstance)
     }
 }
 
-std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinningParams &params)
+void create_tetMesh(std::unique_ptr<SoftBodySkinning> &instance, const SoftBodySkinningParams &params)
 {
     using namespace wi::scene;
     using namespace wi::ecs;
@@ -595,11 +589,9 @@ std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinnin
     tetMesh.subsets.back().indexOffset = 0;
     tetMesh.subsets.back().indexCount = (uint32_t)getDragonTetMesh().tetEdgeIds.size();
 
-    // Create a SoftBodySkinning instace that will contain the TetraMesh
-    // object and the entity we will use to access the mesh and other components
-    // associated with this TetraMesh object. TetraMesh will store and manage all
-    // physics-related data and operations.
-    auto instance = std::make_unique<SoftBodySkinning>();
+    // instace that will hold the TetraMesh object and the entity we will use to
+    // access the mesh and other components associated with this TetraMesh object.
+    // TetraMesh will store and manage all physics-related data and operations.
     instance->tetMesh = std::make_unique<TetraMesh>(getDragonTetMesh(), params.edgeCompliance, params.volCompliance);
     instance->tetEntity = tetEntity;
 
@@ -639,6 +631,12 @@ std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinnin
     // GPU buffer containing all mesh data of the scene, if available.
     // Otherwise, create a new GPU buffer for this mesh only.
     tetMesh.CreateRenderData();
+}
+
+void create_visMesh(std::unique_ptr<SoftBodySkinning> &instance, const SoftBodySkinningParams &params)
+{
+    using namespace wi::scene;
+    using namespace wi::ecs;
 
     // Create a new entity for the VISUAL mesh (high-resolution)
     // This entity (integer) will be used to create and access all components
@@ -657,7 +655,9 @@ std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinnin
     visMesh.subsets.back().indexOffset = 0;
     visMesh.subsets.back().indexCount = (uint32_t)getDragonVisMesh().triIds.size();
 
-    // Create the VISUAL mesh (high-resolution)
+    // instace that will hold the VisualMesh object and the entity we will use to
+    // access the mesh and other components associated with this VisualMesh object.
+    // VisualMesh will store and manage all visual mesh-related data.
     instance->visMesh = std::make_unique<VisualMesh>(getDragonVisMesh());
     instance->visEntity = visEntity;
 
@@ -748,6 +748,18 @@ std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinnin
     }
 
     visMesh.CreateRenderData();
+}
+
+std::unique_ptr<SoftBodySkinning> create_softbody_skinning(const SoftBodySkinningParams &params)
+{
+    using namespace wi::scene;
+    using namespace wi::ecs;
+
+    // Create a SoftBodySkinning instance
+    auto instance = std::make_unique<SoftBodySkinning>();
+
+    create_tetMesh(instance, params);
+    create_visMesh(instance, params);
 
     return instance;
 }
