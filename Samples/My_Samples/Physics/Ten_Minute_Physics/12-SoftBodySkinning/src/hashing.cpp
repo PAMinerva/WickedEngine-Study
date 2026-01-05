@@ -51,11 +51,10 @@ namespace SpatialHashing
         std::fill(cellStart.begin(), cellStart.end(), 0);
         std::fill(cellEntries.begin(), cellEntries.end(), 0);
 
-		// Compute the number of objects in each cell.
+		// Compute the number of objects in each cell of the conceptual 3D grid.
 		// This populates cellStart with counts
         for (int32_t i = 0; i < numObjects; i++)
         {
-			// Compute the number of objects in each cell of the conceptual 3D grid.
 			// Each cell is defined by integer coordinates (xi, yi, zi), obtained by dividing
 			// the object's position by the grid cell spacing and flooring the result.
 			// The hash function maps these integer coordinates to an index in cellStart,
