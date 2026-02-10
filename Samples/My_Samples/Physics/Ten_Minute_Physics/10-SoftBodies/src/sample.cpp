@@ -91,7 +91,7 @@ void create_custom_shader()
 
 	GraphicsDevice* device = wi::graphics::GetDevice();
 
-	RasterizerState rs_clockwise;
+	static RasterizerState rs_clockwise;
 	rs_clockwise.fill_mode = FillMode::SOLID;
 	rs_clockwise.cull_mode = CullMode::BACK;
 	rs_clockwise.front_counter_clockwise = false;
@@ -159,7 +159,7 @@ void init_gui(SampleRenderPath &srp)
 	run.SetSize(XMFLOAT2(200, 20));
 	run.SetPos(XMFLOAT2(90, 140));
 	run.OnClick(
-		[&](wi::gui::EventArgs args) 
+		[&](wi::gui::EventArgs args)
 		{
 			gPhysicsScene.Run();
 
@@ -194,7 +194,7 @@ void init_gui(SampleRenderPath &srp)
 	squash.SetSize(XMFLOAT2(200, 20));
 	squash.SetPos(XMFLOAT2(90, 200));
 	squash.OnClick(
-		[&](wi::gui::EventArgs args) 
+		[&](wi::gui::EventArgs args)
 		{
 			gPhysicsScene.Squash();
 

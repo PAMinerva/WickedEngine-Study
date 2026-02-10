@@ -120,7 +120,7 @@ void create_custom_shader()
 
 	// Tetrahedral Mesh Rasterizer State
 
-	RasterizerState rs_wireframe;
+	static RasterizerState rs_wireframe;
 	rs_wireframe.fill_mode = FillMode::SOLID;
 	rs_wireframe.cull_mode = CullMode::BACK;
 	rs_wireframe.depth_clip_enable = true;

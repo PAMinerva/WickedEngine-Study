@@ -96,7 +96,7 @@ void create_custom_shader()
 
 	// Vis Mesh Rasterizer State (clockwise)
 
-	RasterizerState rs_clockwise;
+	static RasterizerState rs_clockwise;
 	rs_clockwise.fill_mode = FillMode::SOLID;
 	rs_clockwise.cull_mode = CullMode::BACK;
 	rs_clockwise.front_counter_clockwise = false;
