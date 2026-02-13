@@ -1,9 +1,11 @@
 # Spatial Hashing Physics Sample
 
+![Sample Preview](sample.gif)
+
 Implementation of lesson [11 - Hashing](https://github.com/matthias-research/pages/blob/master/tenMinutePhysics/11-hashing.html) from the [Ten Minute Physics](https://matthias-research.github.io/pages/tenMinutePhysics/) series by [Matthias Müller](https://github.com/matthias-research).
 
-**Created by:** [PAMinerva](https://github.com/PAMinerva)<br><br>
-**Credits to:** [Matthias Müller](https://github.com/matthias-research) for the original concept and implementation.<br><br>
+**Created by:** [PAMinerva](https://github.com/PAMinerva)<br>
+**Credits to:** [Matthias Müller](https://github.com/matthias-research) for the original concept and implementation.<br>
 **Powered by:** [Wicked Engine](https://github.com/turanszkij/WickedEngine)<br>
 Special thanks to [Turánszki János](https://github.com/turanszkij) for creating Wicked Engine and making it available under the MIT license.
 
