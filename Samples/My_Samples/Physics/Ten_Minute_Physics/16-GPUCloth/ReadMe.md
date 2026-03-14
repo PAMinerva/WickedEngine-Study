@@ -17,6 +17,7 @@ Real-time GPU cloth simulation using position-based dynamics with two solver mod
 ## Features
 
 - **GPU Compute Simulation** — All physics runs on the GPU via compute shaders
+- **Zero-Readback Rendering** — Simulation results are copied directly to renderer buffers on the GPU via a custom streamout routing (`so_pos`/`so_nor`), eliminating the GPU→CPU→GPU readback round-trip (~2x FPS improvement, at least in Debug mode; Release mode is GPU-bound so the improvement is less pronounced)
 - **CAS-Loop Float Atomics** — Concurrent accumulation using `InterlockedCompareExchange` with `asuint` and `asfloat`
 - **Two Solver Modes** — Toggle between coloring (faster convergence) and full Jacobi at runtime
 - **5-Pass Constraint Coloring** — 4 independent stretch passes + 1 Jacobi pass for shear/bending

@@ -486,9 +486,47 @@ void ClothMesh::CreateGPUBuffers()
     makeRWStructured(triDistBuffer, sizeof(float), numTris, nullptr, "cloth::triDist");
 
     // Readback buffers
-    makeReadback(posReadbackBuffer, sizeof(XMFLOAT4) * numParticles, "cloth::posReadback");
-    makeReadback(normalsReadbackBuffer, sizeof(XMFLOAT4) * numParticles, "cloth::normalsReadback");
     makeReadback(triDistReadbackBuffer, sizeof(float) * numTris, "cloth::triDistReadback");
+
+    // Renderer output buffers
+    // These buffers are written by UpdateStreamoutGPU and read by the renderer
+    // via so_pos/so_nor routing. They use BUFFER_STRUCTURED for BindUAVs (CS write)
+    // plus TYPED_FORMAT_CASTING for typed SRV creation (renderer read).
+
+    // Renderer positions: structured float4 + typed SRV as R32G32B32A32_FLOAT
+    {
+        GPUBufferDesc desc;
+        desc.usage = Usage::DEFAULT;
+        desc.bind_flags = BindFlag::SHADER_RESOURCE | BindFlag::UNORDERED_ACCESS;
+        desc.misc_flags = ResourceMiscFlag::BUFFER_STRUCTURED | ResourceMiscFlag::TYPED_FORMAT_CASTING;
+        desc.stride = sizeof(XMFLOAT4);
+        desc.size = sizeof(XMFLOAT4) * numParticles;
+        device->CreateBuffer(&desc, cpuPos.data(), &renderPosBuffer);
+        device->SetName(&renderPosBuffer, "cloth::renderPos");
+
+        Format fmt = Format::R32G32B32A32_FLOAT;
+        int srv = device->CreateSubresource(&renderPosBuffer, SubresourceType::SRV, 0, desc.size, &fmt);
+        renderPosSRVDescriptor = device->GetDescriptorIndex(&renderPosBuffer, SubresourceType::SRV, srv);
+    }
+
+    // Renderer normals: structured uint + typed SRV as R8G8B8A8_SNORM
+    {
+        // Initialize with up-facing normals: (0, 127, 0, 0) packed as R8G8B8A8_SNORM
+        std::vector<uint32_t> initNormals(numParticles, 0x007F00u);
+
+        GPUBufferDesc desc;
+        desc.usage = Usage::DEFAULT;
+        desc.bind_flags = BindFlag::SHADER_RESOURCE | BindFlag::UNORDERED_ACCESS;
+        desc.misc_flags = ResourceMiscFlag::BUFFER_STRUCTURED | ResourceMiscFlag::TYPED_FORMAT_CASTING;
+        desc.stride = sizeof(uint32_t);
+        desc.size = sizeof(uint32_t) * numParticles;
+        device->CreateBuffer(&desc, initNormals.data(), &renderNorBuffer);
+        device->SetName(&renderNorBuffer, "cloth::renderNor");
+
+        Format fmt = Format::R8G8B8A8_SNORM;
+        int srv = device->CreateSubresource(&renderNorBuffer, SubresourceType::SRV, 0, desc.size, &fmt);
+        renderNorSRVDescriptor = device->GetDescriptorIndex(&renderNorBuffer, SubresourceType::SRV, srv);
+    }
 
     // Dispatch sizes
     dispatchParticles = (numParticles + CLOTH_THREAD_GROUP_SIZE - 1) / CLOTH_THREAD_GROUP_SIZE;
@@ -527,6 +565,9 @@ void ClothMesh::LoadShaders()
     wi::renderer::LoadShader(SM::CS, addNormalsCS,         "cloth_simulation.cso", ShaderModel::SM_6_0, {"ADD_NORMALS"},          "cloth_addNormalsCS");
     wi::renderer::LoadShader(SM::CS, normalizeNormalsCS,   "cloth_simulation.cso", ShaderModel::SM_6_0, {"NORMALIZE_NORMALS"},    "cloth_normalizeNormalsCS");
     wi::renderer::LoadShader(SM::CS, raycastTriangleCS,    "cloth_simulation.cso", ShaderModel::SM_6_0, {"RAYCAST_TRIANGLE"},     "cloth_raycastTriangleCS");
+
+	// UpdateStreamoutCS uses different bindings that the ones in cloth_common.hlsli, so it is implemented in a separate shader file.
+	wi::renderer::LoadShader(SM::CS, updateStreamoutCS,   "cloth_updateStreamoutCS.cso");
 
 	// Old LoadShader calls without permutation defines (left here for reference, but not used since we switched to a single .cso with permutations)
     // wi::renderer::LoadShader(ShaderStage::CS, computeRestLengthsCS, "cloth_computeRestLengthsCS.cso");
@@ -874,6 +915,48 @@ void ClothMesh::UpdateMeshNormalsGPU(wi::graphics::CommandList cmd)
     }
 }
 
+void ClothMesh::UpdateStreamoutGPU(CommandList cmd) const
+{
+    if (!gpuBuffersReady)
+        return;
+
+    GraphicsDevice* device = wi::graphics::GetDevice();
+
+    device->BindComputeShader(&updateStreamoutCS, cmd);
+
+    // CB: only numParticles needed
+    struct { uint32_t numParticles; uint32_t _pad[3]; } cb = {};
+    cb.numParticles = numParticles;
+    device->BindDynamicConstantBuffer(cb, 0, cmd);
+
+    // u0, u1: input simulation buffers
+    const GPUResource* uavs_in[] = { &posBuffer, &normalsBuffer };
+    device->BindUAVs(uavs_in, 0, 2, cmd);
+
+    // u2, u3: output renderer buffers
+    const GPUResource* uavs_out[] = { &renderPosBuffer, &renderNorBuffer };
+    device->BindUAVs(uavs_out, 2, 2, cmd);
+
+    device->Dispatch(dispatchParticles, 1, 1, cmd);
+
+    GPUBarrier barrier = GPUBarrier::Memory();
+    device->Barrier(&barrier, 1, cmd);
+}
+
+void ClothMesh::SetupRendererRouting(wi::scene::MeshComponent& mesh) const
+{
+    if (renderPosSRVDescriptor < 0 || renderNorSRVDescriptor < 0)
+        return;
+
+    mesh.so_pos.offset = 0;
+    mesh.so_pos.size = (uint64_t)numParticles * sizeof(XMFLOAT4);
+    mesh.so_pos.descriptor_srv = renderPosSRVDescriptor;
+
+    mesh.so_nor.offset = 0;
+    mesh.so_nor.size = (uint64_t)numParticles * sizeof(uint32_t);
+    mesh.so_nor.descriptor_srv = renderNorSRVDescriptor;
+}
+
 void ClothMesh::Reset()
 {
     if (!gpuBuffersReady)
@@ -896,6 +979,10 @@ void ClothMesh::Reset()
     // Restore invMass
     device->UpdateBuffer(&invMassBuffer, cpuInvMass.data(), cmd,
         sizeof(float) * numParticles);
+
+    // Also update render buffers with initial positions
+    device->UpdateBuffer(&renderPosBuffer, restPos.data(), cmd,
+        sizeof(XMFLOAT4) * numParticles);
 
     device->SubmitCommandLists();
 
@@ -1055,72 +1142,4 @@ void ClothMesh::EndGrabGPU(wi::graphics::CommandList cmd)
 
     // Just reset the drag state; next frame shaders see dragParticleNr = -1.
     dragParticleNr = -1;
-}
-
-void ClothMesh::RequestPositionsReadback(wi::graphics::CommandList cmd)
-{
-    if (!gpuBuffersReady)
-        return;
-
-    GraphicsDevice* device = wi::graphics::GetDevice();
-
-    GPUBarrier barrier = GPUBarrier::Buffer(&posBuffer,
-        ResourceState::UNORDERED_ACCESS, ResourceState::COPY_SRC);
-    device->Barrier(&barrier, 1, cmd);
-
-    device->CopyResource(&posReadbackBuffer, &posBuffer, cmd);
-
-    barrier = GPUBarrier::Buffer(&posBuffer,
-        ResourceState::COPY_SRC, ResourceState::UNORDERED_ACCESS);
-    device->Barrier(&barrier, 1, cmd);
-
-    posReadbackPending = true;
-}
-
-void ClothMesh::RequestNormalsReadback(wi::graphics::CommandList cmd)
-{
-    if (!gpuBuffersReady)
-        return;
-
-    GraphicsDevice* device = wi::graphics::GetDevice();
-
-    GPUBarrier barrier = GPUBarrier::Buffer(&normalsBuffer,
-        ResourceState::UNORDERED_ACCESS, ResourceState::COPY_SRC);
-    device->Barrier(&barrier, 1, cmd);
-
-    device->CopyResource(&normalsReadbackBuffer, &normalsBuffer, cmd);
-
-    barrier = GPUBarrier::Buffer(&normalsBuffer,
-        ResourceState::COPY_SRC, ResourceState::UNORDERED_ACCESS);
-    device->Barrier(&barrier, 1, cmd);
-
-    normalsReadbackPending = true;
-}
-
-void ClothMesh::ProcessPositionsReadback()
-{
-    if (!gpuBuffersReady || !posReadbackPending)
-        return;
-
-    if (posReadbackBuffer.mapped_data)
-    {
-        const XMFLOAT4* src = static_cast<const XMFLOAT4*>(posReadbackBuffer.mapped_data);
-        for (int i = 0; i < numParticles; i++)
-            cpuPos[i] = src[i];
-        posReadbackPending = false;
-    }
-}
-
-void ClothMesh::ProcessNormalsReadback()
-{
-    if (!gpuBuffersReady || !normalsReadbackPending)
-        return;
-
-    if (normalsReadbackBuffer.mapped_data)
-    {
-        const XMFLOAT4* src = static_cast<const XMFLOAT4*>(normalsReadbackBuffer.mapped_data);
-        for (int i = 0; i < numParticles; i++)
-            cpuNormals[i] = XMFLOAT3(src[i].x, src[i].y, src[i].z);
-        normalsReadbackPending = false;
-    }
 }

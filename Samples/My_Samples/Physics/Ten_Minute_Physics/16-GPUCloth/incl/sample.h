@@ -11,7 +11,6 @@ public:
     void Load() override;
     void Update(float dt) override;
     void FixedUpdate() override;
-    void Render() const override;
 };
 
 class SampleApp : public wi::Application
