@@ -31,6 +31,13 @@ void init_simulation(uint64_t wireShaderID)
 
     instance->cloth->InitGPUBuffers();
 
+	// Setup renderer routing: so_pos/so_nor point to our render buffers
+	{
+		auto wireMesh = wi::scene::GetScene().meshes.GetComponent(instance->wireEntity);
+		if (wireMesh)
+			instance->cloth->SetupRendererRouting(*wireMesh);
+	}
+
     gPhysicsScene.objects.push_back(std::move(instance));
 
     label_tris.SetText(std::to_string(numTris) + " triangles");
@@ -56,6 +63,7 @@ void simulate(wi::graphics::CommandList cmd, float frameDt)
 
         object->cloth->SimulateGPU(frameDt, cmd, gPhysicsScene.solveType);
         object->cloth->UpdateMeshNormalsGPU(cmd);
+		object->cloth->UpdateStreamoutGPU(cmd);
     }
 }
 
@@ -107,6 +115,19 @@ void create_wire_mesh(std::unique_ptr<SimulationObject>& instance, const Simulat
     mesh.SetQuantizedPositionsDisabled(true);
     mesh.CreateRenderData();
 
+	// Conservative AABB — cloth can move anywhere within this large volume.
+	// Without position readback we can't compute exact AABB, so use generous bounds.
+	//
+	// TODO: For tighter AABB without full readback, implement a parallel reduction
+	// compute shader that computes min/max of all positions in posBuffer and writes
+	// the result to a small 24-byte buffer (6 floats). Then readback only those
+	// 24 bytes and set mesh.aabb from them — orders of magnitude cheaper than
+	// reading back all particle positions.
+	float halfExtent = cloth.params.spacing * std::max(cloth.numX, cloth.numZ) * 0.5f + 2.0f;
+	mesh.aabb = wi::primitive::AABB(
+		XMFLOAT3(-halfExtent, -1.0f, -halfExtent),
+		XMFLOAT3( halfExtent, cloth.params.clothY + 2.0f, halfExtent));
+
     ObjectComponent& obj = scene.objects.Create(entity);
     obj.meshID = entity;
     obj.SetRenderable(true);
@@ -114,62 +135,6 @@ void create_wire_mesh(std::unique_ptr<SimulationObject>& instance, const Simulat
 
     LayerComponent& layer = scene.layers.Create(entity);
     layer.layerMask = 1;
-}
-
-void update_mesh(const ClothMesh& cloth, wi::scene::MeshComponent& mesh, wi::graphics::CommandList cmd)
-{
-    wi::graphics::GraphicsDevice* device = wi::graphics::GetDevice();
-
-    XMFLOAT3 _min = {  FLT_MAX,  FLT_MAX,  FLT_MAX };
-    XMFLOAT3 _max = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
-
-    for (int i = 0; i < cloth.numParticles; i++)
-    {
-        XMFLOAT3 p(cloth.cpuPos[i].x, cloth.cpuPos[i].y, cloth.cpuPos[i].z);
-        mesh.vertex_positions[i] = p;
-        _min = wi::math::Min(_min, p);
-        _max = wi::math::Max(_max, p);
-    }
-
-    mesh.aabb = wi::primitive::AABB(_min, _max);
-
-    if (mesh.vertex_normals.size() == static_cast<size_t>(cloth.numParticles))
-    {
-        for (int i = 0; i < cloth.numParticles; i++)
-        {
-            mesh.vertex_normals[i] = cloth.cpuNormals[i];
-        }
-    }
-
-    // Update positions in generalBuffer (POS32 — full float, no quantization)
-    {
-        wi::vector<wi::scene::MeshComponent::Vertex_POS32> verts(cloth.numParticles);
-        for (int i = 0; i < cloth.numParticles; i++)
-            verts[i].FromFULL(mesh.vertex_positions[i]);
-
-        device->UpdateBuffer(
-            &mesh.generalBuffer,
-            verts.data(),
-            cmd,
-            mesh.vb_pos_wind.size,
-            mesh.vb_pos_wind.offset
-        );
-    }
-
-    // Update normals in generalBuffer
-    {
-        wi::vector<wi::scene::MeshComponent::Vertex_NOR> nors(cloth.numParticles);
-        for (int i = 0; i < cloth.numParticles; i++)
-            nors[i].FromFULL(mesh.vertex_normals[i]);
-
-        device->UpdateBuffer(
-            &mesh.generalBuffer,
-            nors.data(),
-            cmd,
-            mesh.vb_nor.size,
-            mesh.vb_nor.offset
-        );
-    }
 }
 
 std::unique_ptr<SimulationObject> create_simulation_object(const SimulationParams& params)

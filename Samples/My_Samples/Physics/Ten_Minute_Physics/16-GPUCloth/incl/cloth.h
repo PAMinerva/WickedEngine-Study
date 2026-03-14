@@ -34,6 +34,12 @@ public:
     // Update mesh normals on GPU
     void UpdateMeshNormalsGPU(wi::graphics::CommandList cmd);
 
+	// Copy simulation results to renderer buffers (GPU → GPU, no readback)
+	void UpdateStreamoutGPU(wi::graphics::CommandList cmd) const;
+
+	// Setup renderer routing: redirect so_pos/so_nor to our render buffers
+	void SetupRendererRouting(wi::scene::MeshComponent& mesh) const;
+
     // GPU raycast for grabbing (returns true if hit found)
     bool StartGrabGPU(const XMFLOAT3& rayOrigin, const XMFLOAT3& rayDir);
     void DragGPU(const XMFLOAT3& rayOrigin, const XMFLOAT3& rayDir, wi::graphics::CommandList cmd);
@@ -41,12 +47,6 @@ public:
 
     // Reset to initial state
     void Reset();
-
-    // Readback management
-    void RequestPositionsReadback(wi::graphics::CommandList cmd);
-    void RequestNormalsReadback(wi::graphics::CommandList cmd);
-    void ProcessPositionsReadback();
-    void ProcessNormalsReadback();
 
     // =====================================================================
     // Simulation parameters
@@ -101,13 +101,14 @@ public:
     wi::graphics::GPUBuffer normAccumBuffer;    // uint (3*N, stores float bits via CAS atomics)
     wi::graphics::GPUBuffer triDistBuffer;      // float (raycast output)
 
-    // Readback buffers
-    wi::graphics::GPUBuffer posReadbackBuffer;
-    wi::graphics::GPUBuffer normalsReadbackBuffer;
-    wi::graphics::GPUBuffer triDistReadbackBuffer;
+	// Renderer output buffers (GPU-written, renderer reads via so_pos/so_nor routing)
+	wi::graphics::GPUBuffer renderPosBuffer;    // float4, typed SRV as R32G32B32A32_FLOAT
+	wi::graphics::GPUBuffer renderNorBuffer;    // uint,   typed SRV as R8G8B8A8_SNORM
+	int renderPosSRVDescriptor = -1;
+	int renderNorSRVDescriptor = -1;
 
-    bool posReadbackPending = false;
-    bool normalsReadbackPending = false;
+    // Readback buffers (for grab raycast results)
+    wi::graphics::GPUBuffer triDistReadbackBuffer;
 
     // =====================================================================
     // Compute shaders
@@ -121,6 +122,7 @@ public:
     wi::graphics::Shader addNormalsCS;
     wi::graphics::Shader normalizeNormalsCS;
     wi::graphics::Shader raycastTriangleCS;
+	wi::graphics::Shader updateStreamoutCS;
 
     bool gpuBuffersReady = false;
     bool restLengthsComputed = false;

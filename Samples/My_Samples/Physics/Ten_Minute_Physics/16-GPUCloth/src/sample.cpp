@@ -1,4 +1,3 @@
-#include <cstddef>
 #include <wiColor.h>
 #include <wiECS.h>
 #include <wiEnums.h>
@@ -413,30 +412,4 @@ void SampleRenderPath::Update(float dt)
     }
 
     RenderPath3D::Update(dt);
-}
-
-void SampleRenderPath::Render() const
-{
-    wi::graphics::GraphicsDevice* device = wi::graphics::GetDevice();
-    wi::graphics::CommandList cmd = device->BeginCommandList();
-
-    for (auto& object : gPhysicsScene.objects)
-    {
-        object->cloth->ProcessPositionsReadback();
-        object->cloth->ProcessNormalsReadback();
-
-        if (!gPhysicsScene.paused)
-        {
-            object->cloth->RequestPositionsReadback(cmd);
-            object->cloth->RequestNormalsReadback(cmd);
-        }
-
-        auto wireMesh = wi::scene::GetScene().meshes.GetComponent(object->wireEntity);
-        if (wireMesh)
-        {
-            simulation::update_mesh(*object->cloth, *wireMesh, cmd);
-        }
-    }
-
-    RenderPath3D::Render();
 }
