@@ -490,7 +490,7 @@ void ClothMesh::CreateGPUBuffers()
 
     // Renderer output buffers
     // These buffers are written by UpdateStreamoutGPU and read by the renderer
-    // via so_pos/so_nor routing. They use BUFFER_STRUCTURED for BindUAVs (CS write)
+    // via so_pos/so_nor routing. They use BUFFER_STRUCTURED for BindUAVs (updateStreamoutCS write)
     // plus TYPED_FORMAT_CASTING for typed SRV creation (renderer read).
 
     // Renderer positions: structured float4 + typed SRV as R32G32B32A32_FLOAT

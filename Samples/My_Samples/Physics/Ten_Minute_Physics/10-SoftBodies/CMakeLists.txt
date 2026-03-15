@@ -26,7 +26,7 @@ if (WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/resource.rc
 	)
 
-    # Quando si utilizza WIN32 come argomento in add_executable, si indica a CMake che l'eseguibile target è un'applicazione Windows GUI. 
+    # Quando si utilizza WIN32 come argomento in add_executable, si indica a CMake che l'eseguibile target è un'applicazione Windows GUI.
     # Questo ha i seguenti effetti:
     #   - CMake imposterà l'opzione WIN32_EXECUTABLE per l'eseguibile target, che indica al compilatore di creare un'applicazione Windows GUI,
     #     sopprimendo la finestra della console che altrimenti verrebbe visualizzata quando si esegue l'applicazione.
@@ -62,7 +62,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/incl
 )
 
-target_precompile_headers(Tests PRIVATE stdafx.h)
+target_precompile_headers(${PROJECT_NAME} PRIVATE stdafx.h)
 
 # MSVC è un identificatore in CMake che indica che il sistema di build sta usando il compilatore Microsoft Visual C++ (MSVC)
 # CMAKE_CXX_FLAGS è una variabile che contiene le opzioni di compilazione per il compilatore C++. È usata da CMake per passare argomenti al compilatore.
