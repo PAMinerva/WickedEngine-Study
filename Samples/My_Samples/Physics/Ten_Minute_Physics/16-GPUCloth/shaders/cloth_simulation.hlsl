@@ -623,7 +623,7 @@ void cloth_normalizeNormalsCS(uint3 DTid : SV_DispatchThreadID)
     float ny = asfloat(normAccum[base + 1u]);
     float nz = asfloat(normAccum[base + 2u]);
 
-	// Normalize the accumulated normal vector to get the final vertex normal.
+	// Normalize the accumulated normal vector to get the final vertex normal, storing it in the normals buffer.
 	// We don't need to worry about conflicts here because each particle is processed by only one thread.
     normals[pNr] = float4(normalize(float3(nx, ny, nz)), 0.0f);
 }

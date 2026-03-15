@@ -61,8 +61,17 @@ void simulate(wi::graphics::CommandList cmd, float frameDt)
         object->cloth->params.sphereCenter[2] = gPhysicsScene.sphereCenter[2];
         object->cloth->params.sphereRadius = gPhysicsScene.sphereRadius;
 
+		// Simulate cloth on GPU and update GPU buffers with new positions and normals.
         object->cloth->SimulateGPU(frameDt, cmd, gPhysicsScene.solveType);
         object->cloth->UpdateMeshNormalsGPU(cmd);
+
+		// Update renderer output buffers described by so_pos and so_nor views in the mesh component
+		// with the new positions and normals from the simulation.
+		// Note that the renderer automatically checks if the mesh component has so_pos/so_nor set up,
+		// and if so, it uses the underlying buffers of those views (renderPosBuffer and renderNorBuffer in our case)
+		// as vertex buffers instead of the original vertex buffers we created for the wireframe mesh by
+		// calling CreateRenderData(). This way we can feed the simulated vertex data directly to the renderer
+		// without any CPU readback or copying.
 		object->cloth->UpdateStreamoutGPU(cmd);
     }
 }
