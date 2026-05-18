@@ -1,5 +1,6 @@
 # Rendering
 add_subdirectory(Rendering/01-HelloTriangle)
+add_subdirectory(Rendering/02-CustomMaterialShader)
 
 
 # Physics
