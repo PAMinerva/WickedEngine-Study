@@ -1946,7 +1946,7 @@ void LoadShaders()
 									if (mesh_shader && realPS == SHADERTYPE_COUNT)
 									{
 										// Apple Metal workaround: mesh shader must have pixel shader
-										realPS = PSTYPE_OBJECT_DEBUG;
+										realPS = PSTYPE_VERTEXCOLOR;
 									}
 #endif // __APPLE__
 									desc.ps = realPS < SHADERTYPE_COUNT ? &shaders[realPS] : nullptr;
