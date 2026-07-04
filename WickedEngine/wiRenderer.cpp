@@ -9365,6 +9365,10 @@ void RefreshEnvProbes(const Visibility& vis, CommandList cmd)
 			shadercam.z_far_rcp = zFarPRcp;
 			shadercam.z_range = abs(zFarP - zNearP);
 			shadercam.z_range_rcp = 1.0f / std::max(0.0001f, shadercam.z_range);
+			shadercam.far_mul_near_mul_2 = shadercam.z_far * shadercam.z_near * 2;
+			shadercam.near_sub_far = shadercam.z_near - shadercam.z_far;
+			shadercam.far_sub_near = shadercam.z_far - shadercam.z_near;
+			shadercam.near_plus_far = shadercam.z_near + shadercam.z_far;
 			shadercam.internal_resolution = uint2(probe.texture.desc.width, probe.texture.desc.height);
 			shadercam.internal_resolution_rcp.x = 1.0f / shadercam.internal_resolution.x;
 			shadercam.internal_resolution_rcp.y = 1.0f / shadercam.internal_resolution.y;
@@ -11452,6 +11456,10 @@ void BindCameraCB(
 	shadercam.z_far_rcp = 1.0f / std::max(0.0001f, shadercam.z_far);
 	shadercam.z_range = abs(shadercam.z_far - shadercam.z_near);
 	shadercam.z_range_rcp = 1.0f / std::max(0.0001f, shadercam.z_range);
+	shadercam.far_mul_near_mul_2 = shadercam.z_far * shadercam.z_near * 2;
+	shadercam.near_sub_far = shadercam.z_near - shadercam.z_far;
+	shadercam.far_sub_near = shadercam.z_far - shadercam.z_near;
+	shadercam.near_plus_far = shadercam.z_near + shadercam.z_far;
 	shadercam.clip_plane = camera.clipPlane;
 	shadercam.reflection_plane = camera_reflection.clipPlaneOriginal;
 
