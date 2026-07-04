@@ -1416,7 +1416,6 @@ inline T compute_lineardepth_normalized(in T z)
 }
 
 // Computes post-projection depth from linear depth
-//	This version can be used without camera struct with raw values
 inline float compute_inverse_lineardepth(in float lin, in float near, in float far, in bool ortho = false)
 {
 	if (ortho)
