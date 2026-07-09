@@ -19849,8 +19849,7 @@ wi::Resource CreatePaintableTexture(uint32_t width, uint32_t height, uint32_t mi
 	desc.format = Format::R8G8B8A8_UNORM;
 	desc.bind_flags = BindFlag::SHADER_RESOURCE | BindFlag::UNORDERED_ACCESS | BindFlag::RENDER_TARGET;
 	desc.misc_flags = ResourceMiscFlag::TYPED_FORMAT_CASTING;
-	wi::vector<wi::Color> data(desc.width * desc.height);
-	std::fill(data.begin(), data.end(), initialColor);
+	wi::vector<wi::Color> data(desc.width * desc.height, initialColor);
 	SubresourceData initdata[32] = {};
 	for (uint32_t mip = 0; mip < desc.mip_levels; ++mip)
 	{
