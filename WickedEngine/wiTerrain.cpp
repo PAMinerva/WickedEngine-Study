@@ -286,9 +286,7 @@ namespace wi::terrain
 				bd.usage = Usage::DEFAULT;
 				bd.bind_flags = BindFlag::UNORDERED_ACCESS;
 				bd.size = sizeof(uint32_t) * tile_count;
-				wi::vector<uint32_t> data(tile_count);
-				std::fill(data.begin(), data.end(), 0xFF);
-				success = device->CreateBuffer(&bd, data.data(), &requestBuffer);
+				success = device->CreateBufferClearedWithType(&bd, 0x000000FFu, &requestBuffer);
 				assert(success);
 				device->SetName(&requestBuffer, "VirtualTexture::requestBuffer");
 			}
