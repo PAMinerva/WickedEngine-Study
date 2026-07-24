@@ -99,20 +99,6 @@ static_assert(SURFEL_RECYCLE_RECENCY_MAX < 256, "Must be < 256 because it is pac
 static_assert(SURFEL_RAY_BOOST_MAX < 256, "Must be < 256 because it is packed at 8 bits!");
 #endif // __cplusplus
 
-// This per-surfel surfel structure will be accessed rapidly on GI lookup, so keep it as small as possible
-//	But also ensure that it is 16-byte aligned for structured buffer access performance
-struct alignas(16) Surfel
-{
-	SH::L1_RGB::Packed radiance;
-	uint2 normal;
-	float3 position;
-	uint radius_packed; // 16-bit half: per-surfel world radius (distance scaled)
-
-#ifndef __cplusplus
-	inline float GetRadius() { return f16tof32(radius_packed); }
-	inline void SetRadius(float value) { radius_packed = f32tof16(value); }
-#endif // __cplusplus
-};
 // This per-surfel structure will store all additional persistent data per surfel that isn't needed at GI lookup
 struct SurfelData
 {
@@ -202,11 +188,6 @@ struct SurfelRayDataPacked
 	}
 #endif // __cplusplus
 };
-struct SurfelGridCell
-{
-	uint count;
-	uint offset;
-};
 struct PushConstantsSurfelRaytrace
 {
 	uint instanceInclusionMask;
@@ -229,6 +210,7 @@ struct SurfelDebugPushConstants
 };
 
 #ifndef __cplusplus
+
 // World-space cell size (and surfel radius) of cascaded grid level L. Level 0
 // is the finest (SURFEL_MIN_RADIUS); each coarser level doubles. A surfel is
 // placed at the level whose cell matches its radius, so near surfaces use fine
@@ -542,6 +524,94 @@ void MultiscaleMeanEstimator(
 	data.vbbr = vbbr;
 	data.variance = variance;
 	data.inconsistency = inconsistency;
+}
+
+// Gather world-space surfel GI irradiance at a shading point by reading the
+// cached surfels around it, using the SAME geometry weighting as the coverage
+// pass (surfel_geometry_weight). Read-only: it never spawns surfels or marks
+// them seen.
+//
+// This is the world-space analogue of the screen-space surfel GI texture, for
+// surfaces that texture cannot serve - the TRANSPARENT forward path (water),
+// whose pixels are not in the opaque G-buffer the coverage pass runs on. It is
+// sampled like DDGI's probe volume: at an arbitrary world position/normal,
+// gathering the surrounding opaque-surface surfels (water itself never carries
+// surfels). The caller must first check GetScene().surfelgi.buffer >= 0 (surfel
+// GI active).
+//
+// The moment (visibility) weight the coverage gather applies is intentionally
+// omitted: it needs the moments texture the forward pass does not bind, and
+// water is a minor GI receiver where the extra anti-leak is not worth the
+// binding. Everything else mirrors gather_surfel in surfel_coverageCS.
+//
+// @note Loops the surfels of up to three cascade cells per call with no group
+// cooperation; fine for the limited water footprint, but not meant for
+// full-screen opaque use (that stays on the screen-space texture).
+//
+// @param[in] P - world-space shading position.
+// @param[in] N - world-space shading normal.
+//
+// @return Diffuse irradiance from the surfel cache (already /PI, matching the
+// coverage result), or 0 if no surfels cover the point.
+float3 SampleSurfelGI(float3 P, float3 N)
+{
+	StructuredBuffer<Surfel> surfelBuffer =
+		bindless_structured_surfel[descriptor_index(GetScene().surfelgi.buffer)];
+	StructuredBuffer<SurfelGridCell> surfelGridBuffer =
+		bindless_structured_surfelgridcell[descriptor_index(GetScene().surfelgi.gridbuffer)];
+	StructuredBuffer<uint> surfelCellBuffer =
+		bindless_structured_uint[descriptor_index(GetScene().surfelgi.cellbuffer)];
+
+	N = normalize(N);
+
+	float4 color = 0; // rgb = weighted irradiance sum, a = weight sum
+
+	// Same cascade window as the coverage gather: the point's own level +/-1.
+	const uint base_level = surfel_level(P);
+	const uint level_lo = (base_level > 0) ? (base_level - 1) : 0;
+	const uint level_hi = min(base_level + 1, SURFEL_GRID_LEVELS - 1);
+
+	for (uint level = level_lo; level <= level_hi; ++level)
+	{
+		int3 gridpos = surfel_cell(P, level);
+		if (!surfel_cellvalid(gridpos))
+			continue;
+
+		const uint cellindex = surfel_cellindex(gridpos, level);
+		SurfelGridCell cell = surfelGridBuffer[cellindex];
+
+		for (uint i = 0; i < cell.count; ++i)
+		{
+			Surfel surfel = surfelBuffer[surfelCellBuffer[cell.offset + i]];
+
+			float3 L = P - surfel.position;
+			float dist2 = dot(L, L);
+			if (dist2 >= sqr(surfel.GetRadius()))
+				continue;
+
+			float3 normal = normalize(unpack_half3(surfel.normal));
+			float dotN = dot(N, normal);
+			if (dotN <= 0)
+				continue;
+
+			float contribution = surfel_geometry_weight(
+				L, normal, surfel.GetRadius(), dist2, dotN);
+
+			// max(0,...): L1 SH irradiance can ring negative away from its
+			// dominant lobe; unclamped it would subtract light (same guard as
+			// gather_surfel in surfel_coverageCS).
+			color += float4(
+				max(0, SH::CalculateIrradiance(surfel.radiance.Unpack(), N)),
+				1) * contribution;
+		}
+	}
+
+	if (color.a > 0)
+	{
+		color.rgb /= color.a; // weighted average of contributors
+		color.rgb /= PI;      // match the coverage result normalization
+	}
+	return color.rgb;
 }
 
 #endif // __cplusplus

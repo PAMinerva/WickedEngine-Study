@@ -322,7 +322,9 @@ float3x3 adjoint(in float4x4 m)
 		"SRV(t0, space = 207, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"SRV(t0, space = 208, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
 		"SRV(t0, space = 209, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
-		"SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)" \
+		"SRV(t0, space = 210, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 211, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)," \
+		"SRV(t0, space = 212, offset = 0, numDescriptors = unbounded, flags = DESCRIPTORS_VOLATILE | DATA_VOLATILE)" \
 	"), " \
 	"StaticSampler(s100, addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP, addressW = TEXTURE_ADDRESS_CLAMP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
 	"StaticSampler(s101, addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP, addressW = TEXTURE_ADDRESS_WRAP, filter = FILTER_MIN_MAG_MIP_LINEAR)," \
@@ -543,6 +545,8 @@ static const BindlessResource<StructuredBuffer<uint2> > bindless_structured_uint
 static const BindlessResource<StructuredBuffer<ShaderTerrainChunk> > bindless_structured_terrain_chunks;
 static const BindlessResource<StructuredBuffer<DDGIProbe> > bindless_structured_ddgi_probes;
 static const BindlessResource<StructuredBuffer<GaussianSplat> > bindless_structured_gaussian_splats;
+static const BindlessResource<StructuredBuffer<Surfel> > bindless_structured_surfel;
+static const BindlessResource<StructuredBuffer<SurfelGridCell> > bindless_structured_surfelgridcell;
 #elif defined(__spirv__)
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<ShaderMeshInstance> bindless_structured_meshinstance[];
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<ShaderGeometry> bindless_structured_geometry[];
@@ -555,6 +559,8 @@ static const BindlessResource<StructuredBuffer<GaussianSplat> > bindless_structu
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<ShaderTerrainChunk> bindless_structured_terrain_chunks[];
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<DDGIProbe> bindless_structured_ddgi_probes[];
 [[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<GaussianSplat> bindless_structured_gaussian_splats[];
+[[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<Surfel> bindless_structured_surfel[];
+[[vk::binding(0, DESCRIPTOR_SET_BINDLESS_STORAGE_BUFFER)]] StructuredBuffer<SurfelGridCell> bindless_structured_surfelgridcell[];
 #else
 StructuredBuffer<ShaderMeshInstance> bindless_structured_meshinstance[] : register(space200);
 StructuredBuffer<ShaderGeometry> bindless_structured_geometry[] : register(space201);
@@ -567,6 +573,8 @@ StructuredBuffer<uint2> bindless_structured_uint2[] : register(space207);
 StructuredBuffer<ShaderTerrainChunk> bindless_structured_terrain_chunks[] : register(space208);
 StructuredBuffer<DDGIProbe> bindless_structured_ddgi_probes[] : register(space209);
 StructuredBuffer<GaussianSplat> bindless_structured_gaussian_splats[] : register(space210);
+StructuredBuffer<Surfel> bindless_structured_surfel[] : register(space211);
+StructuredBuffer<SurfelGridCell> bindless_structured_surfelgridcell[] : register(space212);
 #endif // defined(__PSSL__) || (defined(__hlsl_dx_compiler) && !defined(__spirv__) && __SHADER_TARGET_MAJOR >= 6 && __SHADER_TARGET_MINOR >= 6)
 
 // Note: these are macros, the SPIRV compilation is a LOT slower and uses a LOT more memory when functions return large structs, issue: https://github.com/microsoft/DirectXShaderCompiler/issues/7493
