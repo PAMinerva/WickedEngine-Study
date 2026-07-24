@@ -6,6 +6,39 @@
 
 static const float VXGI_CLIPMAP_COUNT_RCP = rcp((float)VXGI_CLIPMAP_COUNT);
 
+// Brightness correction for the diffuse cone trace.
+//
+// The step-size scaling in SampleVoxelClipMap (sam *= step_dist / voxelSize)
+// multiplies the sampled radiance by a factor that is >= 2 for the diffuse
+// trace (stepSize == 1 and the cone diameter starts at 2 * voxelSize). That
+// made VXGI diffuse GI roughly 2x brighter than DDGI / Surfel.
+//
+// This is applied to the FINAL ConeTraceDiffuse result rather than inside the
+// per-sample compositing on purpose: ConeTraceDiffuse also drives the recursive
+// voxel radiance feedback (vxgi_temporalCS), and altering the compositing there
+// destabilises that loop (runaway accumulation to white). Scaling the final
+// result can only reduce the feedback-loop gain, so it cannot destabilise a
+// loop that was already stable at full strength.
+static const half VXGI_DIFFUSE_INTENSITY = 0.5;
+
+// Brightness correction for the specular cone trace.
+//
+// ConeTraceSpecular traces with stepSize == vxgi.stepsize (default 1), so it is
+// subject to the same >= 2x step-size over-brightness as the diffuse trace (see
+// VXGI_DIFFUSE_INTENSITY). It is applied to the final ConeTraceSpecular result
+// for the same reason and keeps reflections consistent with the diffuse GI.
+// Unlike the diffuse trace, the specular trace does not feed the voxel radiance
+// back into itself, so this is display-only.
+static const half VXGI_SPECULAR_INTENSITY = 0.5;
+
+// Roughness above which the specular cone trace is skipped entirely.
+//
+// At high roughness the reflection cone is very wide, so its contribution is
+// low frequency and small in magnitude - it is already well approximated by the
+// diffuse GI and by environment probe reflections. Skipping the per-pixel cone
+// march there avoids wasted work for a negligible visual difference.
+static const half VXGI_SPECULAR_MAX_ROUGHNESS = 0.8;
+
 inline half4 SampleVoxelClipMap(in Texture3D<half4> voxels, in float3 P, in uint clipmap_index, float step_dist, in float3 face_offsets, in float3 direction_weights, uint precomputed_direction = 0)
 {
 	VoxelClipMap clipmap = GetFrame().vxgi.clipmaps[clipmap_index];
@@ -21,12 +54,25 @@ inline half4 SampleVoxelClipMap(in Texture3D<half4> voxels, in float3 P, in uint
 	half4 sam;
 	if (precomputed_direction == 0)
 	{
-		// sample anisotropically 3 times, weighted by cone direction:
-		sam =
+		// Sample anisotropically 3 times, weighted by cone direction, then
+		// normalize by the weight sum. direction_weights = abs(coneDirection),
+		// so the weights sum to between 1 (axis-aligned) and sqrt(3) ~ 1.73
+		// (diagonal). Dividing by that sum turns this into a proper directional
+		// average, instead of letting diagonal cone directions pick up ~1.73x
+		// more radiance than axis-aligned ones. The sum is always >= 1 for a
+		// normalized direction, so the division is safe.
+		//
+		// Note: only the non-precomputed path (specular reflections) reaches
+		// this. The diffuse path reads precomputed, already-weighted slices,
+		// and it also feeds the recursive voxel radiance loop, so it is
+		// intentionally left as is here.
+		const float weight_sum =
+			direction_weights.x + direction_weights.y + direction_weights.z;
+		sam = (
 			voxels.SampleLevel(sampler_linear_clamp, float3(tc.x + face_offsets.x, tc.y, tc.z), 0) * direction_weights.x +
 			voxels.SampleLevel(sampler_linear_clamp, float3(tc.x + face_offsets.y, tc.y, tc.z), 0) * direction_weights.y +
 			voxels.SampleLevel(sampler_linear_clamp, float3(tc.x + face_offsets.z, tc.y, tc.z), 0) * direction_weights.z
-			;
+			) / weight_sum;
 	}
 	else
 	{
@@ -145,7 +191,7 @@ inline half4 ConeTraceDiffuse(in Texture3D<half4> voxels, in float3 P, in float3
 	}
 	amount /= sum;
 
-	amount.rgb = max(0, amount.rgb);
+	amount.rgb = max(0, amount.rgb) * VXGI_DIFFUSE_INTENSITY;
 	amount.a = saturate(amount.a);
 
 	return amount;
@@ -164,7 +210,7 @@ inline half4 ConeTraceSpecular(in Texture3D<half4> voxels, in float3 P, in float
 	P += coneDirection * (dither(pixel + GetTemporalAASampleRotation()) - 0.5) * GetFrame().vxgi.stepsize;
 
 	half4 amount = ConeTrace(voxels, P, N, coneDirection, aperture, GetFrame().vxgi.stepsize, true);
-	amount.rgb = max(0, amount.rgb);
+	amount.rgb = max(0, amount.rgb) * VXGI_SPECULAR_INTENSITY;
 	amount.a = saturate(amount.a);
 
 	return amount;

@@ -9,9 +9,22 @@
 #define VOXELIZATION_GEOMETRY_SHADER_ENABLED
 #endif // !defined(__APPLE__) && !defined(__metal__)
 
-// If enabled, conservative rasterization will be used to voxelize
-//	This can more accurately voxelize thin geometry, but slower
+// Conservative rasterization for voxelization. It more accurately voxelizes
+// thin geometry (reduces light leaking and missing voxels along edges / thin
+// surfaces), but it fattens every triangle and adds pixel-shader work, which is
+// expensive on dense, high-overdraw scenes such as terrain (each voxelizer
+// fragment also does many atomic writes). For that reason it is OFF by default.
+//
+// To enable, uncomment the define below. It is kept inside the geometry-shader
+// guard because the triangle expansion and the per-voxel AABB clipping that
+// make it correct live in the geometry shader; the vertex-shader fallback path
+// does not emit the triangle AABB the pixel shader needs. At runtime the
+// hardware conservative raster is only turned on if the device supports it,
+// otherwise the geometry-shader triangle expansion provides a software
+// fallback.
+#ifdef VOXELIZATION_GEOMETRY_SHADER_ENABLED
 //#define VOXELIZATION_CONSERVATIVE_RASTERIZATION_ENABLED
+#endif // VOXELIZATION_GEOMETRY_SHADER_ENABLED
 
 // Number of clipmaps, each doubling in size:
 static const uint VXGI_CLIPMAP_COUNT = 6;
@@ -68,12 +81,14 @@ enum VOXELIZATION_CHANNEL
 	VOXELIZATION_CHANNEL_BASECOLOR_G,
 	VOXELIZATION_CHANNEL_BASECOLOR_B,
 	VOXELIZATION_CHANNEL_BASECOLOR_A,
-	VOXELIZATION_CHANNEL_EMISSIVE_R,
-	VOXELIZATION_CHANNEL_EMISSIVE_G,
-	VOXELIZATION_CHANNEL_EMISSIVE_B,
-	VOXELIZATION_CHANNEL_DIRECTLIGHT_R,
-	VOXELIZATION_CHANNEL_DIRECTLIGHT_G,
-	VOXELIZATION_CHANNEL_DIRECTLIGHT_B,
+	// Self-emitted radiance per fragment: albedo * directLight / PI + emissive.
+	// Precomputed at voxelization time so the temporal pass only has to add the
+	// indirect bounce (albedo * indirect). This merges the former separate
+	// EMISSIVE and DIRECTLIGHT channels (6 -> 3), cutting voxelization atomic
+	// traffic and the render_atomic texture size.
+	VOXELIZATION_CHANNEL_SELFRADIANCE_R,
+	VOXELIZATION_CHANNEL_SELFRADIANCE_G,
+	VOXELIZATION_CHANNEL_SELFRADIANCE_B,
 	VOXELIZATION_CHANNEL_NORMAL_R,
 	VOXELIZATION_CHANNEL_NORMAL_G,
 	VOXELIZATION_CHANNEL_FRAGMENT_COUNTER,
